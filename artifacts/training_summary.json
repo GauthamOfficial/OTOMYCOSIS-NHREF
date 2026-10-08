@@ -1,0 +1,52 @@
+{
+  "classes": [
+    "acute_otitis_media",
+    "cerumen_impaction",
+    "chronic_om_active_no_cholesteatoma",
+    "chronic_om_cholesteatoma",
+    "chronic_om_inactive",
+    "chronic_om_suppurative",
+    "chronic_om_unspecified",
+    "myringosclerosis",
+    "normal",
+    "other_findings",
+    "otitis_externa",
+    "otitis_media_effusion"
+  ],
+  "best_val_macro_f1": 0.6594863312864706,
+  "macro_f1_history": [
+    0.3276716313841657,
+    0.3593689348349646,
+    0.4593066495175025,
+    0.5261217221944522,
+    0.3993048188788451,
+    0.5503973122264917,
+    0.6131379990202457,
+    0.5427010401332699,
+    0.6517380446930104,
+    0.614261388744371,
+    0.5580657123686299,
+    0.6096069017004965,
+    0.5383925151493757,
+    0.6012444642395931,
+    0.5746689336560702,
+    0.5931944501168896,
+    0.6044772734076705,
+    0.6305249117554491,
+    0.6197938864409771,
+    0.6594863312864706,
+    0.6097565059611496,
+    0.6342939951966202,
+    0.6160927132071815,
+    0.6374107658319804,
+    0.6068799472171261,
+    0.6499910986394422
+  ],
+  "train_images": 3326,
+  "val_images": 719,
+  "image_size": [
+    224,
+    224
+  ],
+  "preprocessing": "mobilenet_v2.preprocess_input"
+}

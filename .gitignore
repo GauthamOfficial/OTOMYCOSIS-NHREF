@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 venv/
 env/
+Dataset/
 
 # Runtime
 uploads/
@@ -17,3 +18,9 @@ Desktop.ini
 .DS_Store
 .vscode/
 .idea/
+
+# Training artifacts
+# The tf.data cache is multi-GB and rebuildable; the manifest, label map and
+# evaluation reports are small and are kept, since they define the taxonomy
+# and the exact train/val/test split used for a run.
+artifacts/cache/

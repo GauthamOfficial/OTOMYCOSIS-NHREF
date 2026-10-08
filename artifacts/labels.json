@@ -1,0 +1,59 @@
+{
+  "classes": [
+    "acute_otitis_media",
+    "cerumen_impaction",
+    "chronic_om_active_no_cholesteatoma",
+    "chronic_om_cholesteatoma",
+    "chronic_om_inactive",
+    "chronic_om_suppurative",
+    "chronic_om_unspecified",
+    "myringosclerosis",
+    "normal",
+    "other_findings",
+    "otitis_externa",
+    "otitis_media_effusion"
+  ],
+  "class_to_index": {
+    "acute_otitis_media": 0,
+    "cerumen_impaction": 1,
+    "chronic_om_active_no_cholesteatoma": 2,
+    "chronic_om_cholesteatoma": 3,
+    "chronic_om_inactive": 4,
+    "chronic_om_suppurative": 5,
+    "chronic_om_unspecified": 6,
+    "myringosclerosis": 7,
+    "normal": 8,
+    "other_findings": 9,
+    "otitis_externa": 10,
+    "otitis_media_effusion": 11
+  },
+  "parent_groups": {
+    "chronic_otitis_media": [
+      "chronic_om_unspecified",
+      "chronic_om_suppurative",
+      "chronic_om_active_no_cholesteatoma",
+      "chronic_om_inactive",
+      "chronic_om_cholesteatoma"
+    ]
+  },
+  "taxonomy": {
+    "Acute otitis media": "acute_otitis_media",
+    "normal": "normal",
+    "otitis externa": "otitis_externa",
+    "otitis media effusion": "otitis_media_effusion",
+    "Cerumen_Impaction": "cerumen_impaction",
+    "Ear wax": "cerumen_impaction",
+    "Myringosclerosis": "myringosclerosis",
+    "tympanoskleros": "myringosclerosis",
+    "Chronic_Otitis_Media": "chronic_om_unspecified",
+    "Chronic Suppurative Otitis Media": "chronic_om_suppurative",
+    "chronic active otitis media without cholesteatoma": "chronic_om_active_no_cholesteatoma",
+    "chronic inactive otitis media": "chronic_om_inactive",
+    "chronic otitis media with cholesteatoma": "chronic_om_cholesteatoma",
+    "Foreign Object Ear": "other_findings",
+    "pseudoMembranes": "other_findings",
+    "Ear VentilationTube": "other_findings"
+  },
+  "seed": 1337,
+  "hash_distance": 4
+}

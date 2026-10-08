@@ -6,8 +6,14 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-from .config import ALLOWED_EXTENSIONS, API_PREFIX, FRONTEND_DIR, UPLOAD_DIR
-from .model import clear_session, load_classifier, predict
+from .config import (
+    ALLOWED_EXTENSIONS,
+    API_PREFIX,
+    FRONTEND_DIR,
+    LABELS_VERIFIED,
+    UPLOAD_DIR,
+)
+from .model import assess, clear_session, group_totals, load_classifier, predict
 from .preprocessing import load_image, load_image_cropped
 
 
@@ -54,18 +60,32 @@ def create_app():
 
         try:
             model = load_classifier()
+            raw = model.predict(batch, verbose=0)[0]
             label, confidence, ranked = predict(model, batch)
+            groups = group_totals(raw)
         finally:
             # The graph is released so the next request can load the model again.
             clear_session()
 
+        certainty = assess(ranked)
+
         return jsonify({
             "prediction": label,
             "confidence": round(confidence, 4),
+            # True when the distribution is too flat to call. Clients must not
+            # present the leading class as a finding when this is set.
+            "inconclusive": certainty["inconclusive"],
+            "certainty": certainty,
             "differential": [
                 {"label": name, "probability": round(value, 4)}
                 for name, value in ranked
             ],
+            # Coarse rollup, so a confident family is not hidden behind an
+            # uncertain split between its own subtypes.
+            "groups": groups,
+            # False means the running weights are the legacy ones whose class
+            # order was never recorded.
+            "labels_verified": LABELS_VERIFIED,
         })
 
     return app
