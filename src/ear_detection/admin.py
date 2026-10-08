@@ -1,0 +1,230 @@
+"""Administration: user accounts, model versions, retraining and the audit log.
+
+Every route here requires the admin role.
+"""
+
+import re
+
+from flask import Blueprint, current_app, g, jsonify, request
+
+from . import config, reporting, retraining
+from .auth import client_ip, hash_password, login_required, password_problem
+from .db import AuditEvent, ModelVersion, TrainingJob, User, as_utc, db, record, utcnow
+
+admin_bp = Blueprint("admin", __name__, url_prefix=config.API_PREFIX + "/admin")
+
+USERNAME = re.compile(r"^[a-z0-9._\-]{3,64}$")
+
+
+def _error(message, status=400, field=None):
+    body = {"error": message}
+    if field:
+        body["field"] = field
+    return jsonify(body), status
+
+
+def _active_admins():
+    return User.query.filter_by(role="admin", is_active=True).count()
+
+
+# ---------------- users ----------------
+
+@admin_bp.route("/users")
+@login_required("admin")
+def list_users():
+    users = User.query.order_by(User.full_name).all()
+    now = utcnow()
+
+    def locked(user):
+        until = as_utc(user.locked_until)
+        return until is not None and until > now
+
+    return jsonify({"items": [u.to_dict() | {"locked": locked(u)} for u in users]})
+
+
+@admin_bp.route("/users", methods=["POST"])
+@login_required("admin")
+def create_user():
+    body = request.get_json(silent=True) or {}
+    username = str(body.get("username", "")).strip().lower()
+    full_name = re.sub(r"\s+", " ", str(body.get("full_name", ""))).strip()
+    role = str(body.get("role", "clinician"))
+    password = str(body.get("password", ""))
+
+    if not USERNAME.match(username):
+        return _error("Username must be 3 to 64 characters: lower case letters, digits, . _ -",
+                      field="username")
+    if User.query.filter_by(username=username).first():
+        return _error("That username is already taken.", 409, "username")
+    if not 2 <= len(full_name) <= 120:
+        return _error("Enter the person's full name.", field="full_name")
+    if role not in config.ROLE_CHOICES:
+        return _error("Choose a valid role.", field="role")
+    problem = password_problem(password, username)
+    if problem:
+        return _error(problem, field="password")
+
+    user = User(username=username, full_name=full_name, role=role,
+                password_hash=hash_password(password), must_change_password=True)
+    db.session.add(user)
+    db.session.flush()
+    record("user_created", user=g.user, entity="user", entity_id=user.id,
+           detail={"username": username, "role": role}, ip=client_ip())
+    db.session.commit()
+    return jsonify({"user": user.to_dict()}), 201
+
+
+@admin_bp.route("/users/<int:user_id>", methods=["PATCH"])
+@login_required("admin")
+def update_user(user_id):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return _error("User not found.", 404)
+    body = request.get_json(silent=True) or {}
+    changes = {}
+
+    if "full_name" in body:
+        name = re.sub(r"\s+", " ", str(body["full_name"])).strip()
+        if not 2 <= len(name) <= 120:
+            return _error("Enter the person's full name.", field="full_name")
+        user.full_name = changes["full_name"] = name
+
+    if "role" in body and body["role"] != user.role:
+        role = str(body["role"])
+        if role not in config.ROLE_CHOICES:
+            return _error("Choose a valid role.", field="role")
+        if user.id == g.user.id:
+            return _error("You cannot change your own role.")
+        if user.role == "admin" and user.is_active and _active_admins() <= 1:
+            return _error("At least one active administrator is required.")
+        user.role = changes["role"] = role
+        user.token_version += 1
+
+    if "is_active" in body and bool(body["is_active"]) != user.is_active:
+        active = bool(body["is_active"])
+        if not active and user.id == g.user.id:
+            return _error("You cannot deactivate your own account.")
+        if not active and user.role == "admin" and _active_admins() <= 1:
+            return _error("At least one active administrator is required.")
+        user.is_active = changes["is_active"] = active
+        user.token_version += 1  # ends any open session at once
+
+    record("user_updated", user=g.user, entity="user", entity_id=user.id,
+           detail=changes, ip=client_ip())
+    db.session.commit()
+    return jsonify({"user": user.to_dict()})
+
+
+@admin_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
+@login_required("admin")
+def reset_password(user_id):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return _error("User not found.", 404)
+    password = str((request.get_json(silent=True) or {}).get("password", ""))
+    problem = password_problem(password, user.username)
+    if problem:
+        return _error(problem, field="password")
+    user.password_hash = hash_password(password)
+    user.must_change_password = True
+    user.failed_logins = 0
+    user.locked_until = None
+    user.token_version += 1
+    record("password_reset", user=g.user, entity="user", entity_id=user.id, ip=client_ip())
+    db.session.commit()
+    return jsonify({"user": user.to_dict()})
+
+
+# ---------------- models and retraining ----------------
+
+@admin_bp.route("/models")
+@login_required("admin")
+def list_models():
+    versions = ModelVersion.query.order_by(ModelVersion.created_at.desc()).all()
+    jobs = TrainingJob.query.order_by(TrainingJob.id.desc()).limit(10).all()
+    for job in jobs:
+        retraining.reconcile(job)
+    return jsonify({
+        "active": current_app.extensions["registry"].current().version,
+        "versions": [v.to_dict() for v in versions],
+        "jobs": [j.to_dict() for j in jobs],
+        "readiness": retraining.readiness(),
+    })
+
+
+@admin_bp.route("/retrain", methods=["POST"])
+@login_required("admin")
+def start_retraining():
+    status = retraining.readiness()
+    if not status["ready"]:
+        return _error(" ".join(status["problems"]), 409)
+    job = retraining.start(g.user)
+    record("retraining_started", user=g.user, entity="training_job", entity_id=job.id,
+           detail={"usable_reviews": status["usable_reviews"]}, ip=client_ip())
+    db.session.commit()
+    return jsonify({"job": job.to_dict()}), 202
+
+
+@admin_bp.route("/jobs/<int:job_id>")
+@login_required("admin")
+def job_status(job_id):
+    job = db.session.get(TrainingJob, job_id)
+    if job is None:
+        return _error("Job not found.", 404)
+    retraining.reconcile(job)
+    return jsonify({"job": job.to_dict(), "log": retraining.log_tail(job)})
+
+
+@admin_bp.route("/models/<int:version_id>/approve", methods=["POST"])
+@login_required("admin")
+def approve_model(version_id):
+    candidate = db.session.get(ModelVersion, version_id)
+    if candidate is None or candidate.status != "candidate":
+        return _error("Only a candidate model can be approved.", 409)
+    gate = (candidate.summary or {}).get("gate", {})
+    if not gate.get("passed"):
+        return _error("This candidate did not pass the validation gate and cannot go live.", 409)
+
+    # Load the new model before touching any records, so a failure leaves the
+    # current model serving and the database unchanged.
+    try:
+        current_app.extensions["registry"].activate(candidate)
+    except Exception as exc:
+        return _error("The candidate model could not be loaded: %s" % exc, 500)
+
+    for previous in ModelVersion.query.filter_by(status="active").all():
+        previous.status = "retired"
+    candidate.status = "active"
+    candidate.approved_at = utcnow()
+    candidate.approved_by_id = g.user.id
+    record("model_approved", user=g.user, entity="model_version", entity_id=candidate.id,
+           detail={"version": candidate.version}, ip=client_ip())
+    db.session.commit()
+
+    evaluation = config.read_json(config.absolute(candidate.evaluation_path), default=None)
+    if evaluation:
+        reporting.write_reports(evaluation)
+    return jsonify({"version": candidate.to_dict()})
+
+
+@admin_bp.route("/models/<int:version_id>/reject", methods=["POST"])
+@login_required("admin")
+def reject_model(version_id):
+    candidate = db.session.get(ModelVersion, version_id)
+    if candidate is None or candidate.status != "candidate":
+        return _error("Only a candidate model can be rejected.", 409)
+    candidate.status = "rejected"
+    record("model_rejected", user=g.user, entity="model_version", entity_id=candidate.id,
+           detail={"version": candidate.version}, ip=client_ip())
+    db.session.commit()
+    return jsonify({"version": candidate.to_dict()})
+
+
+# ---------------- audit ----------------
+
+@admin_bp.route("/audit")
+@login_required("admin")
+def audit_log():
+    limit = min(500, max(1, request.args.get("limit", 100, type=int)))
+    events = AuditEvent.query.order_by(AuditEvent.at.desc(), AuditEvent.id.desc()).limit(limit).all()
+    return jsonify({"items": [e.to_dict() for e in events]})

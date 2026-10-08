@@ -1,0 +1,316 @@
+"""Administration commands for the screening service.
+
+    python scripts/manage.py setup            guided first time setup
+    python scripts/manage.py init-db          create any missing tables
+    python scripts/manage.py create-user      add a user account
+    python scripts/manage.py reset-password   set a new temporary password
+    python scripts/manage.py unlock           clear a sign in lockout
+    python scripts/manage.py check            test the database connection
+
+``setup`` connects to PostgreSQL once as the superuser to create a dedicated
+database and a login role that owns only that database. The service itself
+then runs as that limited role; the superuser password is not stored.
+"""
+
+import argparse
+import getpass
+import os
+import re
+import secrets
+import sys
+
+from common import BASE_DIR  # noqa: F401  (puts src/ on the path)
+
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
+
+
+# ---------------- helpers ----------------
+
+def ask(prompt, default=None, secret=False, validate=None):
+    while True:
+        label = "%s [%s]: " % (prompt, default) if default else "%s: " % prompt
+        value = getpass.getpass("  " + label) if secret else input("  " + label).strip()
+        if not value and default is not None:
+            value = default
+        problem = validate(value) if validate else (None if value else "A value is required.")
+        if not problem:
+            return value
+        print("    " + problem)
+
+
+def read_env():
+    values = {}
+    if os.path.isfile(ENV_PATH):
+        with open(ENV_PATH, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    values[key.strip()] = value.strip()
+    return values
+
+
+def write_env(values):
+    lines = [
+        "# Ear Disease Detection System settings. Keep this file private:",
+        "# it holds the database password and the token signing key.",
+        "",
+        "DATABASE_URL=%s" % values["DATABASE_URL"],
+        "JWT_SECRET_KEY=%s" % values["JWT_SECRET_KEY"],
+        "STORAGE_DIR=%s" % values.get("STORAGE_DIR", ""),
+        "# Set to true once the service is reached over HTTPS.",
+        "COOKIE_SECURE=%s" % values.get("COOKIE_SECURE", "false"),
+        "# Set to true only behind a reverse proxy that sets X-Real-IP.",
+        "TRUST_PROXY=%s" % values.get("TRUST_PROXY", "false"),
+        "MIN_REVIEWS_FOR_RETRAIN=%s" % values.get("MIN_REVIEWS_FOR_RETRAIN", "50"),
+        "",
+    ]
+    with open(ENV_PATH, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(lines))
+
+
+def provision_database(host, port, superuser, superpass, db_name, db_user, db_pass):
+    """Create the login role and database if they do not exist."""
+    import psycopg
+    from psycopg import sql
+
+    with psycopg.connect(host=host, port=port, user=superuser, password=superpass,
+                         dbname="postgres", autocommit=True, connect_timeout=10) as conn:
+        exists = conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (db_user,)).fetchone()
+        statement = "ALTER ROLE {} WITH LOGIN PASSWORD {}" if exists else \
+            "CREATE ROLE {} WITH LOGIN PASSWORD {}"
+        conn.execute(sql.SQL(statement).format(sql.Identifier(db_user), sql.Literal(db_pass)))
+
+        exists = conn.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,)).fetchone()
+        if not exists:
+            conn.execute(sql.SQL("CREATE DATABASE {} OWNER {} ENCODING 'UTF8'").format(
+                sql.Identifier(db_name), sql.Identifier(db_user)))
+
+    # Only the owning role may use the new database.
+    with psycopg.connect(host=host, port=port, user=superuser, password=superpass,
+                         dbname=db_name, autocommit=True, connect_timeout=10) as conn:
+        conn.execute(sql.SQL("REVOKE ALL ON DATABASE {} FROM PUBLIC").format(sql.Identifier(db_name)))
+        conn.execute(sql.SQL("ALTER SCHEMA public OWNER TO {}").format(sql.Identifier(db_user)))
+
+
+def database_url(host, port, db_name, db_user, db_pass):
+    from sqlalchemy.engine import URL
+    return URL.create("postgresql+psycopg", username=db_user, password=db_pass,
+                      host=host, port=int(port), database=db_name).render_as_string(hide_password=False)
+
+
+def init_database(url):
+    from ear_detection.db import db, make_db_app
+    from ear_detection.registry import ensure_seed_version
+
+    app = make_db_app(url)
+    with app.app_context():
+        db.create_all()
+        ensure_seed_version()
+    return app
+
+
+def create_user(app, username, full_name, role, password, must_change):
+    from ear_detection.auth import hash_password, password_problem
+    from ear_detection.db import User, db, record
+
+    problem = password_problem(password, username)
+    if problem:
+        raise SystemExit(problem)
+    with app.app_context():
+        if User.query.filter_by(username=username).first():
+            raise SystemExit("User %s already exists." % username)
+        user = User(username=username, full_name=full_name, role=role,
+                    password_hash=hash_password(password), must_change_password=must_change)
+        db.session.add(user)
+        db.session.flush()
+        record("user_created", entity="user", entity_id=user.id,
+               detail={"username": username, "role": role, "via": "manage.py"})
+        db.session.commit()
+
+
+def valid_username(value):
+    return None if re.match(r"^[a-z0-9._\-]{3,64}$", value or "") else \
+        "3 to 64 characters: lower case letters, digits, . _ -"
+
+
+def valid_identifier(value):
+    return None if IDENTIFIER.match(value or "") else \
+        "Lower case letters, digits and underscores, starting with a letter."
+
+
+def ask_new_password(username):
+    from ear_detection.auth import password_problem
+    while True:
+        first = ask("Password", secret=True, validate=lambda v: password_problem(v, username))
+        if ask("Repeat password", secret=True) == first:
+            return first
+        print("    The passwords did not match.")
+
+
+# ---------------- commands ----------------
+
+def cmd_setup(args):
+    print("\nEar Disease Detection System, first time setup\n")
+    existing = read_env()
+
+    print("PostgreSQL connection (the superuser is used once and not stored)")
+    host = args.pg_host or ask("Host", "localhost")
+    port = args.pg_port or ask("Port", "5432", validate=lambda v: None if v.isdigit() else "A number.")
+    superuser = args.pg_superuser or ask("Superuser", "postgres")
+    superpass = args.pg_password or os.environ.get("PGPASSWORD") or \
+        ask("Superuser password", secret=True)
+    db_name = args.db_name or ask("New database name", "ear_screening", validate=valid_identifier)
+    db_user = args.db_user or ask("New database user", "ear_app", validate=valid_identifier)
+    db_pass = secrets.token_urlsafe(24)
+
+    print("\nCreating database %s owned by %s ..." % (db_name, db_user))
+    try:
+        provision_database(host, port, superuser, superpass, db_name, db_user, db_pass)
+    except Exception as exc:
+        raise SystemExit("Could not set up PostgreSQL: %s" % exc)
+
+    url = database_url(host, port, db_name, db_user, db_pass)
+    write_env({
+        "DATABASE_URL": url,
+        "JWT_SECRET_KEY": existing.get("JWT_SECRET_KEY") or secrets.token_urlsafe(48),
+        "STORAGE_DIR": existing.get("STORAGE_DIR", ""),
+        "COOKIE_SECURE": existing.get("COOKIE_SECURE", "false"),
+        "TRUST_PROXY": existing.get("TRUST_PROXY", "false"),
+        "MIN_REVIEWS_FOR_RETRAIN": existing.get("MIN_REVIEWS_FOR_RETRAIN", "50"),
+    })
+    print("Wrote settings to .env")
+
+    print("Creating tables ...")
+    app = init_database(url)
+
+    from ear_detection.db import User
+    with app.app_context():
+        has_admin = User.query.filter_by(role="admin").first() is not None
+    if has_admin:
+        print("An administrator already exists; skipping account creation.")
+    else:
+        print("\nFirst administrator account")
+        username = args.admin_username or ask("Username", "admin", validate=valid_username)
+        full_name = args.admin_name or ask("Full name")
+        password = args.admin_password or ask_new_password(username)
+        create_user(app, username, full_name, "admin", password, must_change=False)
+        print("Created administrator %s." % username)
+
+    print("\nSetup complete. Start the service with start.bat or 'python app.py'.\n")
+
+
+def _app_or_exit():
+    from ear_detection import config
+    if not config.DATABASE_URL:
+        raise SystemExit("DATABASE_URL is not set. Run 'python scripts/manage.py setup' first.")
+    return init_database(config.DATABASE_URL)
+
+
+def cmd_init_db(args):
+    _app_or_exit()
+    print("Tables are up to date.")
+
+
+def cmd_create_user(args):
+    app = _app_or_exit()
+    username = args.username or ask("Username", validate=valid_username)
+    full_name = args.name or ask("Full name")
+    role = args.role or ask("Role (admin or clinician)", "clinician",
+                            validate=lambda v: None if v in ("admin", "clinician") else
+                            "admin or clinician")
+    password = args.password or ask_new_password(username)
+    create_user(app, username, full_name, role, password, must_change=True)
+    print("Created %s (%s). They will be asked to choose a new password at first sign in."
+          % (username, role))
+
+
+def _find_user(username):
+    from ear_detection.db import User
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        raise SystemExit("No user named %s." % username)
+    return user
+
+
+def cmd_reset_password(args):
+    from ear_detection.auth import hash_password
+    from ear_detection.db import db, record
+
+    app = _app_or_exit()
+    with app.app_context():
+        user = _find_user(args.username)
+        password = args.password or ask_new_password(user.username)
+        user.password_hash = hash_password(password)
+        user.must_change_password = True
+        user.failed_logins = 0
+        user.locked_until = None
+        user.token_version += 1
+        record("password_reset", entity="user", entity_id=user.id, detail={"via": "manage.py"})
+        db.session.commit()
+    print("Password reset for %s; they must change it at next sign in." % args.username)
+
+
+def cmd_unlock(args):
+    from ear_detection.db import db
+
+    app = _app_or_exit()
+    with app.app_context():
+        user = _find_user(args.username)
+        user.failed_logins = 0
+        user.locked_until = None
+        db.session.commit()
+    print("Unlocked %s." % args.username)
+
+
+def cmd_check(args):
+    from ear_detection.db import Examination, ModelVersion, Review, User
+
+    app = _app_or_exit()
+    with app.app_context():
+        active = ModelVersion.query.filter_by(status="active").first()
+        print("Database connection OK")
+        print("  users          %d" % User.query.count())
+        print("  examinations   %d" % Examination.query.count())
+        print("  reviews        %d" % Review.query.count())
+        print("  active model   %s" % (active.version if active else "none"))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    setup = sub.add_parser("setup", help="guided first time setup")
+    for flag in ("pg-host", "pg-port", "pg-superuser", "pg-password", "db-name", "db-user",
+                 "admin-username", "admin-name", "admin-password"):
+        setup.add_argument("--" + flag)
+    setup.set_defaults(func=cmd_setup)
+
+    sub.add_parser("init-db", help="create any missing tables").set_defaults(func=cmd_init_db)
+
+    create = sub.add_parser("create-user", help="add a user account")
+    create.add_argument("--username")
+    create.add_argument("--name")
+    create.add_argument("--role", choices=("admin", "clinician"))
+    create.add_argument("--password")
+    create.set_defaults(func=cmd_create_user)
+
+    reset = sub.add_parser("reset-password", help="set a new temporary password")
+    reset.add_argument("username")
+    reset.add_argument("--password")
+    reset.set_defaults(func=cmd_reset_password)
+
+    unlock = sub.add_parser("unlock", help="clear a sign in lockout")
+    unlock.add_argument("username")
+    unlock.set_defaults(func=cmd_unlock)
+
+    sub.add_parser("check", help="test the database connection").set_defaults(func=cmd_check)
+
+    args = parser.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

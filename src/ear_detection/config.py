@@ -1,28 +1,83 @@
-"""Configuration for the ear condition screening service."""
+"""Configuration for the ear condition screening service.
+
+Secrets and deployment settings come from environment variables, normally set
+in a ``.env`` file at the repository root (see ``.env.example``). Run
+``python scripts/manage.py setup`` to create one.
+"""
 
 import json
 import os
+
+from dotenv import load_dotenv
 
 # Repository root, resolved relative to this file so the service works
 # regardless of the directory it is started from.
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
 
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
+
+def _env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
 ARTIFACTS_DIR = os.path.join(BASE_DIR, "artifacts")
 
-MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(BASE_DIR, "models", "ear_classifier.keras"))
+# The weights and calibration shipped with the repository. They are registered
+# as the first model version when the database is created; later versions are
+# produced by retraining and live under models/candidates/.
+DEFAULT_MODEL_PATH = os.path.join(BASE_DIR, "models", "ear_classifier.keras")
 LABELS_FILE = os.path.join(ARTIFACTS_DIR, "labels.json")
 CALIBRATION_FILE = os.path.join(ARTIFACTS_DIR, "calibration.json")
 INPUT_STATS_FILE = os.path.join(ARTIFACTS_DIR, "input_stats.json")
 EVALUATION_FILE = os.path.join(ARTIFACTS_DIR, "evaluation_report.json")
+DEFAULT_MODEL_VERSION = "2.0.0"
 
 API_PREFIX = "/api/v1"
 
-# Uploads are read into memory, analysed and discarded. Nothing derived from a
-# patient image is written to disk.
+# ---------------- deployment ----------------
+
+# PostgreSQL in production, for example
+#   postgresql+psycopg://ear_app:secret@localhost:5432/ear_screening
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+# Signs every login token. Must be long and random; never commit it.
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "")
+
+# Where patient images are kept. Outside the web root, never served directly.
+STORAGE_DIR = os.environ.get("STORAGE_DIR") or os.path.join(BASE_DIR, "storage")
+
+# Set true once the service is behind HTTPS, so login cookies are never sent
+# over plain HTTP.
+COOKIE_SECURE = _env_bool("COOKIE_SECURE", False)
+
+# Set true only when a reverse proxy in front of the service sets X-Real-IP.
+# Otherwise that header is client supplied and could falsify the audit log.
+TRUST_PROXY = _env_bool("TRUST_PROXY", False)
+
+ACCESS_TOKEN_MINUTES = int(os.environ.get("ACCESS_TOKEN_MINUTES") or 15)
+REFRESH_TOKEN_HOURS = int(os.environ.get("REFRESH_TOKEN_HOURS") or 10)
+
+LOGIN_MAX_FAILURES = 5
+LOGIN_LOCK_MINUTES = 15
+MIN_PASSWORD_LENGTH = 10
+
+# Reviewed cases needed before a retraining run is allowed.
+MIN_REVIEWS_FOR_RETRAIN = int(os.environ.get("MIN_REVIEWS_FOR_RETRAIN") or 50)
+
+# ---------------- uploads ----------------
+
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 MIN_IMAGE_SIDE = 128
+
+SEX_CHOICES = ("female", "male", "other")
+EAR_CHOICES = ("left", "right")
+ROLE_CHOICES = ("admin", "clinician")
 
 NORMAL_CLASS = "normal"
 
@@ -87,38 +142,65 @@ PARENT_DISPLAY_NAMES = {
 # anything, so the leading finding is flagged as low confidence when the gap
 # to the runner up is small or the distribution is close to uniform. This
 # affects how the finding is presented, never the referral decision, which
-# has its own threshold below.
+# has its own threshold.
 CONFIDENCE_MIN_MARGIN = 0.15
 CONFIDENCE_MAX_ENTROPY_RATIO = 0.80
 
-# Fallbacks used only if scripts/calibrate.py has not been run.
 DEFAULT_TEMPERATURE = 1.0
 DEFAULT_REFERRAL_THRESHOLD = 0.5
 
 
-def _read_json(path, default=None):
-    if not os.path.isfile(path):
+def display_name(name):
+    return CLASS_INFO.get(name, (name, ""))[0]
+
+
+def description(name):
+    return CLASS_INFO.get(name, (name, ""))[1]
+
+
+def read_json(path, default=None):
+    if not path or not os.path.isfile(path):
         return default
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
 
-def load_runtime_metadata():
-    """Everything the service needs to know about the trained model.
+def absolute(path):
+    """Resolve a path stored relative to the repository root."""
+    if not path:
+        return path
+    return path if os.path.isabs(path) else os.path.join(BASE_DIR, path)
 
-    The class order is read from the file written when the dataset was
-    prepared. It cannot be inferred from the weights, and losing it is what
-    made the project's original model unusable.
+
+def relative(path):
+    """Store paths relative to the repository root so the folder can move."""
+    try:
+        return os.path.relpath(path, BASE_DIR).replace("\\", "/")
+    except ValueError:  # different drive on Windows
+        return path
+
+
+def load_labels():
+    """Class order recorded when the dataset was prepared.
+
+    It cannot be inferred from the weights, and losing it is what made the
+    project's original model unusable.
     """
-    labels = _read_json(LABELS_FILE)
+    labels = read_json(LABELS_FILE)
     if labels is None:
         raise RuntimeError(
             "artifacts/labels.json is missing. Run scripts/prepare_dataset.py "
             "and scripts/train.py before starting the service."
         )
+    return labels
 
-    calibration = _read_json(CALIBRATION_FILE, default={})
+
+def model_metadata(model_path, calibration_path=None, evaluation_path=None):
+    """Everything inference needs about one trained model."""
+    labels = load_labels()
+    calibration = read_json(absolute(calibration_path), default={}) or {}
     return {
+        "model_path": absolute(model_path),
         "classes": labels["classes"],
         "parent_groups": labels.get("parent_groups", {}),
         "temperature": calibration.get("temperature", DEFAULT_TEMPERATURE),
@@ -126,6 +208,6 @@ def load_runtime_metadata():
         "use_tta": calibration.get("use_tta", True),
         "calibrated": bool(calibration),
         "calibration": calibration,
-        "input_stats": _read_json(INPUT_STATS_FILE, default={}),
-        "evaluation": _read_json(EVALUATION_FILE, default={}),
+        "evaluation": read_json(absolute(evaluation_path), default={}) or {},
+        "input_stats": read_json(INPUT_STATS_FILE, default={}) or {},
     }

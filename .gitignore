@@ -31,3 +31,12 @@ artifacts/normalized/
 samples/
 
 .pytest_cache/
+
+# Secrets: database password and token signing key. Never commit.
+.env
+
+# Patient images, derived images and job logs. Never commit.
+storage/
+
+# Retrained model candidates; approved versions are distributed separately.
+models/candidates/

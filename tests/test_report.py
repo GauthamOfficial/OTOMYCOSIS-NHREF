@@ -7,9 +7,9 @@ import sys
 import pytest
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-sys.path.insert(0, os.path.join(ROOT, "scripts"))
+sys.path.insert(0, os.path.join(ROOT, "src"))
 
-import report  # noqa: E402
+from ear_detection import reporting as report  # noqa: E402
 
 EVALUATION = os.path.join(ROOT, "artifacts", "evaluation_report.json")
 

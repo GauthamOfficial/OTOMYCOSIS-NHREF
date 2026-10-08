@@ -29,7 +29,7 @@ import json
 import os
 import sys
 import time
-from collections import Counter, defaultdict
+from collections import Counter
 
 import numpy as np
 from PIL import Image

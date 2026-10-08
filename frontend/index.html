@@ -5,268 +5,567 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ear Disease Detection System</title>
   <meta name="description" content="Tympanic membrane screening support. Nawaloka Hospital PLC Research and Education Foundation.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<header class="masthead">
-  <div class="shell masthead-inner">
-    <div class="identity">
-      <span class="identity-rule" aria-hidden="true"></span>
-      <span class="identity-text">
-        <span class="identity-name">Nawaloka Hospital PLC</span>
-        <span class="identity-unit">Research and Education Foundation</span>
-      </span>
-    </div>
-    <nav class="masthead-meta">
-      <span class="meta-item">Ear Disease Detection</span>
-      <span class="meta-divider" aria-hidden="true"></span>
-      <span class="meta-item meta-muted" id="build-tag">Research Build</span>
-    </nav>
-  </div>
-</header>
-
-<div class="titlebar">
-  <div class="shell titlebar-inner">
-    <div>
-      <h1>Tympanic Membrane Screening</h1>
-      <p>Screen an otoscope image for referral and review the model's reasoning across twelve conditions.</p>
-    </div>
-  </div>
-</div>
-
-<!-- Printed header, shown only on paper -->
-<div class="print-header" aria-hidden="true">
-  <strong>Nawaloka Hospital PLC, Research and Education Foundation</strong>
-  <span>Ear Disease Detection System, screening result</span>
-  <span id="print-stamp"></span>
-</div>
-
-<main class="shell workspace">
-
-  <!-- ================= Left column ================= -->
-  <div class="column">
-
-    <section class="card no-print" aria-labelledby="src-h">
-      <div class="card-head">
-        <h2 id="src-h">Image</h2>
-        <span class="step">Step 1</span>
+<!-- ======================= Sign in ======================= -->
+<div id="screen-login" hidden>
+  <main class="login-shell">
+    <div class="login-card">
+      <div class="login-identity">
+        <span class="identity-rule" aria-hidden="true"></span>
+        <span class="identity-text">
+          <span class="identity-name">Nawaloka Hospital PLC</span>
+          <span class="identity-unit">Research and Education Foundation</span>
+        </span>
       </div>
       <div class="card-body">
-        <div id="dropzone" class="dropzone" tabindex="0" role="button"
-             aria-label="Select an otoscope image, or drop a file here">
-          <div class="dz-frame" aria-hidden="true">
-            <svg viewBox="0 0 32 32" class="dz-glyph">
-              <rect x="4.5" y="7.5" width="23" height="17" rx="1.5"
-                    fill="none" stroke="currentColor" stroke-width="1.4"/>
-              <path d="M4.5 19.5l6-5 5.5 4.5 4.5-3.5 7 6" fill="none"
-                    stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-              <circle cx="20.5" cy="12.5" r="1.8" fill="currentColor"/>
-            </svg>
+        <h1>Sign in</h1>
+        <p class="lead">Ear Disease Detection System</p>
+        <form id="login-form" novalidate>
+          <div class="field">
+            <label for="login-username">Username</label>
+            <input type="text" id="login-username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
           </div>
-          <p class="dz-lead">Select an image<span class="dz-or"> or drop it here</span></p>
-          <p class="dz-note">JPG, PNG, BMP, TIFF or WebP, up to 15 MB</p>
-          <input type="file" id="file-input"
-                 accept="image/jpeg,image/png,image/bmp,image/tiff,image/webp" hidden>
+          <div class="field">
+            <label for="login-password">Password</label>
+            <input type="password" id="login-password" autocomplete="current-password" required>
+          </div>
+          <div id="login-error" class="notice notice-error" role="alert" hidden></div>
+          <button type="submit" class="action" id="login-submit">Sign in</button>
+        </form>
+        <p class="login-foot">Authorised clinical staff only. Activity is recorded.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ======================= Required password change ======================= -->
+<div id="screen-password" hidden>
+  <main class="login-shell">
+    <div class="login-card">
+      <div class="login-identity">
+        <span class="identity-rule" aria-hidden="true"></span>
+        <span class="identity-text">
+          <span class="identity-name">Nawaloka Hospital PLC</span>
+          <span class="identity-unit">Research and Education Foundation</span>
+        </span>
+      </div>
+      <div class="card-body">
+        <h1>Set a new password</h1>
+        <p class="lead">Your account has a temporary password. Choose your own before continuing.</p>
+        <form id="forced-password-form" novalidate></form>
+        <p class="login-foot"><button type="button" class="textbtn" data-action="logout">Sign out</button></p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ======================= Application ======================= -->
+<div id="screen-app" hidden>
+  <header class="masthead">
+    <div class="shell masthead-inner app">
+      <div class="identity">
+        <span class="identity-rule" aria-hidden="true"></span>
+        <span class="identity-text">
+          <span class="identity-name">Nawaloka Hospital PLC</span>
+          <span class="identity-unit">Research and Education Foundation</span>
+        </span>
+      </div>
+      <nav class="app-nav" aria-label="Main">
+        <a href="#/screen" data-nav="screen">Screening</a>
+        <a href="#/history" data-nav="history">History</a>
+        <a href="#/dashboard" data-nav="dashboard">Dashboard</a>
+        <a href="#/admin" data-nav="admin" data-admin-only hidden>Admin</a>
+      </nav>
+      <div class="user-box">
+        <span class="user-name"><strong id="user-name"></strong><span id="user-role"></span></span>
+        <a class="btn btn-small" href="#/account">Account</a>
+        <button type="button" class="btn btn-small" data-action="logout">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="titlebar no-print">
+    <div class="shell titlebar-inner">
+      <div>
+        <h1 id="page-title"></h1>
+        <p id="page-subtitle"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="print-header" aria-hidden="true">
+    <strong>Nawaloka Hospital PLC, Research and Education Foundation</strong>
+    <span>Ear Disease Detection System, screening result</span>
+    <span id="print-patient"></span>
+    <span id="print-stamp"></span>
+  </div>
+
+  <div id="view"></div>
+
+  <footer class="colophon no-print">
+    <div class="shell colophon-inner">
+      <span>Nawaloka Hospital PLC, Research and Education Foundation</span>
+      <span class="colophon-note" id="footer-model">Research use only. Not a substitute for clinical judgement.</span>
+    </div>
+  </footer>
+</div>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<!-- ======================= Templates ======================= -->
+
+<template id="tpl-password-fields">
+  <div class="field">
+    <label>Current password</label>
+    <input type="password" name="current" autocomplete="current-password" required>
+  </div>
+  <div class="field">
+    <label>New password</label>
+    <input type="password" name="new" autocomplete="new-password" required>
+    <span class="field-hint">At least 10 characters, mixing letters with numbers or symbols.</span>
+  </div>
+  <div class="field">
+    <label>Repeat new password</label>
+    <input type="password" name="repeat" autocomplete="new-password" required>
+  </div>
+  <div class="notice notice-error" data-r="error" role="alert" hidden></div>
+  <button type="submit" class="action">Save new password</button>
+</template>
+
+<!-- Assessment of one examination, shared by screening and the detail page -->
+<template id="tpl-assessment">
+  <div data-r="duplicate" class="notice notice-warn" hidden></div>
+  <div data-r="referral" class="referral">
+    <div class="referral-head">
+      <span class="referral-icon" aria-hidden="true"></span>
+      <div>
+        <p class="referral-caption">Screening recommendation</p>
+        <p class="referral-value" data-r="referral-value"></p>
+      </div>
+    </div>
+    <p class="referral-explain" data-r="referral-explain"></p>
+    <div class="gauge" role="img" aria-label="Probability of an abnormal ear against the referral threshold">
+      <div class="gauge-track">
+        <span class="gauge-fill" data-r="gauge-fill"></span>
+        <span class="gauge-mark" data-r="gauge-mark"></span>
+      </div>
+      <div class="gauge-scale">
+        <span>Probability of abnormality <strong data-r="gauge-value"></strong></span>
+        <span>Referral threshold <strong data-r="gauge-threshold"></strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div data-r="quality" class="notice notice-warn" hidden>
+    <strong>Image quality</strong>
+    <ul data-r="quality-list"></ul>
+  </div>
+
+  <div class="finding" data-r="finding">
+    <p class="section-caption">Most likely finding</p>
+    <div class="finding-row">
+      <p class="finding-value" data-r="finding-value"></p>
+      <span class="tag tag-muted" data-r="finding-flag" hidden>Low confidence</span>
+    </div>
+    <p class="finding-desc" data-r="finding-desc"></p>
+    <div class="readout-score">
+      <div class="scorebar"><span class="scorebar-fill" data-r="finding-fill"></span></div>
+      <span class="scorebar-figure" data-r="finding-prob"></span>
+    </div>
+    <p class="finding-note" data-r="finding-note" hidden></p>
+  </div>
+
+  <div class="group-line" data-r="groups" hidden></div>
+
+  <p class="section-caption section-sep">Differential</p>
+  <table class="ranking">
+    <caption class="sr-only">Calibrated probability for each condition, most likely first</caption>
+    <tbody data-r="ranking"></tbody>
+  </table>
+  <button type="button" class="textbtn ranking-toggle no-print" data-r="ranking-toggle"></button>
+
+  <p class="advisory">
+    Screening aid only. Not a clinical diagnosis. Findings require review by a
+    qualified ENT practitioner before any treatment decision.
+  </p>
+</template>
+
+<!-- Surgeon review panel -->
+<template id="tpl-review">
+  <div data-r="done" hidden>
+    <div class="review-done" data-r="done-box">
+      <p class="verdict" data-r="done-verdict"></p>
+      <p data-r="done-comment"></p>
+      <p class="meta" data-r="done-meta"></p>
+    </div>
+    <div class="review-actions no-print">
+      <button type="button" class="btn btn-small" data-r="change">Change review</button>
+    </div>
+    <ul class="review-history" data-r="history"></ul>
+  </div>
+
+  <form data-r="form" hidden novalidate>
+    <p class="review-intro">Confirm the model's finding, or select what the image actually shows.</p>
+    <button type="button" class="btn btn-confirm btn-block" data-r="confirm"></button>
+    <p class="review-or">or select the actual condition</p>
+    <div class="review-options" data-r="options" role="radiogroup" aria-label="Actual condition"></div>
+    <div class="field" style="margin-top:12px">
+      <label>Comment <span class="optional">(optional)</span></label>
+      <textarea data-r="comment" maxlength="1000" rows="2"></textarea>
+    </div>
+    <div class="notice notice-error" data-r="error" role="alert" hidden></div>
+    <div class="review-actions">
+      <button type="submit" class="btn btn-primary" data-r="save">Save review</button>
+      <button type="button" class="btn" data-r="cancel" hidden>Cancel</button>
+    </div>
+  </form>
+</template>
+
+<!-- ---------- Screening ---------- -->
+<template id="tpl-screening">
+  <main class="shell workspace">
+    <div class="column">
+      <section class="card no-print">
+        <div class="card-head"><h2>Patient</h2><span class="step">Step 1</span></div>
+        <div class="card-body">
+          <form data-r="patient-form" novalidate>
+            <div class="field">
+              <label for="f-record">Hospital record number</label>
+              <input type="text" id="f-record" name="record_no" autocomplete="off" spellcheck="false" maxlength="64" placeholder="e.g. NHR-004521">
+              <span class="field-hint" data-r="record-hint">Used to link this examination to the patient's file. Names are not stored.</span>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label for="f-age">Age (years)</label>
+                <input type="number" id="f-age" name="age" min="0" max="120" inputmode="numeric">
+              </div>
+              <div class="field">
+                <span class="label">Sex</span>
+                <div class="segmented" role="radiogroup" aria-label="Sex">
+                  <label><input type="radio" name="sex" value="female"><span>Female</span></label>
+                  <label><input type="radio" name="sex" value="male"><span>Male</span></label>
+                  <label><input type="radio" name="sex" value="other"><span>Other</span></label>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <span class="label">Ear examined</span>
+              <div class="segmented" role="radiogroup" aria-label="Ear examined">
+                <label><input type="radio" name="ear" value="left"><span>Left</span></label>
+                <label><input type="radio" name="ear" value="right"><span>Right</span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label for="f-notes">Clinical notes <span class="optional">(optional)</span></label>
+              <textarea id="f-notes" name="notes" maxlength="2000" rows="2"></textarea>
+            </div>
+          </form>
         </div>
+      </section>
 
-        <figure id="preview" class="specimen" hidden>
-          <img id="preview-img" alt="Selected otoscope image">
-          <figcaption class="specimen-meta">
-            <span id="preview-name" class="specimen-name"></span>
-            <span id="preview-size" class="specimen-size"></span>
-            <button type="button" id="clear-btn" class="textbtn">Replace</button>
-          </figcaption>
-        </figure>
+      <section class="card no-print">
+        <div class="card-head"><h2>Image</h2><span class="step">Step 2</span></div>
+        <div class="card-body">
+          <div class="dropzone" data-r="dropzone" tabindex="0" role="button"
+               aria-label="Select an otoscope image, or drop a file here">
+            <div class="dz-frame" aria-hidden="true">
+              <svg viewBox="0 0 32 32" class="dz-glyph">
+                <rect x="4.5" y="7.5" width="23" height="17" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/>
+                <path d="M4.5 19.5l6-5 5.5 4.5 4.5-3.5 7 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                <circle cx="20.5" cy="12.5" r="1.8" fill="currentColor"/>
+              </svg>
+            </div>
+            <p class="dz-lead">Select an image<span class="dz-or"> or drop it here</span></p>
+            <p class="dz-note">JPG, PNG, BMP, TIFF or WebP, up to 15 MB</p>
+            <input type="file" data-r="file" accept="image/jpeg,image/png,image/bmp,image/tiff,image/webp" hidden>
+          </div>
+          <figure class="specimen" data-r="preview" hidden>
+            <img data-r="preview-img" alt="Selected otoscope image">
+            <figcaption class="specimen-meta">
+              <span class="specimen-name" data-r="preview-name"></span>
+              <span class="specimen-size" data-r="preview-size"></span>
+              <button type="button" class="textbtn" data-r="clear">Replace</button>
+            </figcaption>
+          </figure>
+          <div class="notice notice-error" data-r="form-error" role="alert" hidden style="margin-top:14px"></div>
+          <button type="button" class="action" data-r="analyse" disabled><span class="action-text">Run Analysis</span></button>
+          <p class="privacy-note">The image and result are saved to this patient's examination record.</p>
+        </div>
+      </section>
 
-        <button type="button" id="predict-btn" class="action" disabled>
-          <span class="action-text">Run Analysis</span>
-        </button>
+      <section class="card" data-r="attention-card" hidden>
+        <div class="card-head"><h2>Model Attention</h2></div>
+        <div class="card-body" data-r="attention"></div>
+      </section>
+    </div>
 
-        <p class="privacy-note">
-          Images are analysed in memory and are not stored.
+    <div class="column assessment-card">
+      <section class="card">
+        <div class="card-head"><h2>Assessment</h2><span class="step no-print">Step 3</span></div>
+        <div class="card-body">
+          <div data-r="placeholder" class="placeholder">
+            <p>No analysis yet.</p>
+            <p class="placeholder-note">Enter the patient details, select an image and run the analysis.</p>
+          </div>
+          <div data-r="busy" class="placeholder" hidden>
+            <p class="busy-line"><span class="spinner" aria-hidden="true"></span>Analysing image</p>
+            <p class="placeholder-note">Normalising the field of view and evaluating the image.</p>
+          </div>
+          <div data-r="assessment" hidden></div>
+          <div class="result-actions no-print" data-r="result-actions" hidden>
+            <button type="button" class="secondary" data-action="print">Print result</button>
+            <span class="result-meta" data-r="result-meta"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" data-r="review-card" hidden>
+        <div class="card-head"><h2>Surgeon Review</h2><span class="step no-print">Step 4</span></div>
+        <div class="card-body" data-r="review"></div>
+      </section>
+
+      <div class="no-print" data-r="next" hidden>
+        <button type="button" class="btn btn-block" data-r="new">Start next examination</button>
+      </div>
+    </div>
+  </main>
+</template>
+
+<!-- ---------- Model attention ---------- -->
+<template id="tpl-attention">
+  <div class="attention-grid">
+    <figure class="attention-fig">
+      <img data-r="view" alt="Image as presented to the model">
+      <figcaption>As presented to the model</figcaption>
+    </figure>
+    <figure class="attention-fig">
+      <img data-r="overlay" alt="Regions supporting the finding">
+      <figcaption>Regions supporting <span data-r="overlay-class"></span></figcaption>
+    </figure>
+  </div>
+  <p class="attention-note">
+    Tinted areas contributed most to the finding. Attention on the tympanic membrane
+    or canal is expected; attention concentrated on glare, the image edge or debris
+    unrelated to the finding is a reason to distrust it.
+  </p>
+</template>
+
+<!-- ---------- History ---------- -->
+<template id="tpl-history">
+  <main class="shell" style="padding-top:28px;padding-bottom:48px">
+    <section class="card">
+      <div class="card-body">
+        <form class="toolbar" data-r="filters">
+          <div class="field">
+            <label for="h-q">Record number</label>
+            <input type="text" id="h-q" name="q" autocomplete="off" spellcheck="false" placeholder="Search">
+          </div>
+          <div class="field">
+            <label for="h-status">Show</label>
+            <select id="h-status" name="status">
+              <option value="all">All examinations</option>
+              <option value="unreviewed">Awaiting review</option>
+              <option value="reviewed">Reviewed</option>
+              <option value="disagreement">Surgeon disagreed</option>
+              <option value="refer">Referred</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr><th>Date</th><th>Record</th><th>Patient</th><th>Ear</th><th>Model finding</th>
+                  <th>Recommendation</th><th>Review</th><th>Clinician</th></tr>
+            </thead>
+            <tbody data-r="rows"></tbody>
+          </table>
+        </div>
+        <div data-r="empty" class="empty" hidden>No examinations match.</div>
+        <div class="pager">
+          <span data-r="summary"></span>
+          <span>
+            <button type="button" class="btn btn-small" data-r="prev">Previous</button>
+            <button type="button" class="btn btn-small" data-r="next">Next</button>
+          </span>
+        </div>
+      </div>
+    </section>
+  </main>
+</template>
+
+<!-- ---------- Examination detail ---------- -->
+<template id="tpl-exam">
+  <main class="shell workspace">
+    <div class="column">
+      <section class="card">
+        <div class="card-head"><h2>Examination</h2><a class="textlink no-print" href="#/history">Back to history</a></div>
+        <div class="card-body"><dl class="facts" data-r="facts"></dl></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Original Image</h2></div>
+        <div class="card-body"><img class="original-image" data-r="original" alt="Original otoscope image"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Model Attention</h2></div>
+        <div class="card-body" data-r="attention"></div>
+      </section>
+    </div>
+    <div class="column assessment-card">
+      <section class="card">
+        <div class="card-head"><h2>Assessment</h2></div>
+        <div class="card-body">
+          <div data-r="assessment"></div>
+          <div class="result-actions no-print">
+            <button type="button" class="secondary" data-action="print">Print result</button>
+            <span class="result-meta" data-r="result-meta"></span>
+          </div>
+        </div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Surgeon Review</h2></div>
+        <div class="card-body" data-r="review"></div>
+      </section>
+    </div>
+  </main>
+</template>
+
+<!-- ---------- Dashboard ---------- -->
+<template id="tpl-dashboard">
+  <main class="shell" style="padding-top:28px;padding-bottom:48px;display:grid;gap:20px">
+    <section class="card">
+      <div class="card-head"><h2>Activity</h2></div>
+      <div class="card-body"><div class="stats" data-r="activity"></div></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>Performance on Reviewed Cases</h2></div>
+      <div class="card-body">
+        <p class="caution" data-r="caution" hidden></p>
+        <div class="stats" data-r="performance"></div>
+        <p class="stats-note">
+          Measured on this clinic's patients, taking each reviewing surgeon's verdict as the
+          true diagnosis. This is the evidence that matters for local use, and it becomes
+          more precise with every review.
         </p>
       </div>
     </section>
-
-    <section id="attention" class="card" hidden aria-labelledby="att-h">
-      <div class="card-head">
-        <h2 id="att-h">Model Attention</h2>
-      </div>
-      <div class="card-body">
-        <div class="attention-grid">
-          <figure class="attention-fig">
-            <img id="model-view" alt="Image as presented to the model">
-            <figcaption>As presented to the model</figcaption>
-          </figure>
-          <figure class="attention-fig">
-            <img id="model-overlay" alt="Regions supporting the finding">
-            <figcaption>Regions supporting <span id="overlay-class"></span></figcaption>
-          </figure>
-        </div>
-        <p class="attention-note">
-          Tinted areas contributed most to the finding. Attention on the tympanic
-          membrane or canal is expected; attention concentrated on glare, the
-          image edge or debris unrelated to the finding is a reason to distrust it.
-        </p>
-      </div>
-    </section>
-
-  </div>
-
-  <!-- ================= Right column ================= -->
-  <section class="card assessment-card" aria-labelledby="out-h">
-    <div class="card-head">
-      <h2 id="out-h">Assessment</h2>
-      <span class="step no-print">Step 2</span>
-    </div>
-
-    <div class="card-body">
-
-      <div id="placeholder" class="placeholder">
-        <p>No analysis yet.</p>
-        <p class="placeholder-note">Select an image and run the analysis to see results.</p>
-      </div>
-
-      <div id="busy" class="placeholder" hidden>
-        <p class="busy-line"><span class="spinner" aria-hidden="true"></span>Analysing image</p>
-        <p class="placeholder-note">Normalising the field of view and evaluating the image.</p>
-      </div>
-
-      <div id="error" class="notice notice-error" hidden role="alert">
-        <strong>Analysis failed</strong>
-        <span id="error-text"></span>
-      </div>
-
-      <div id="result" hidden aria-live="polite">
-
-        <!-- Referral decision -->
-        <div id="referral" class="referral">
-          <div class="referral-head">
-            <span class="referral-icon" aria-hidden="true"></span>
-            <div>
-              <p class="referral-caption">Screening recommendation</p>
-              <p class="referral-value" id="referral-value"></p>
-            </div>
-          </div>
-          <p class="referral-explain" id="referral-explain"></p>
-
-          <div class="gauge" role="img" id="gauge"
-               aria-label="Probability of an abnormal ear against the referral threshold">
-            <div class="gauge-track">
-              <span class="gauge-fill" id="gauge-fill"></span>
-              <span class="gauge-mark" id="gauge-mark"></span>
-            </div>
-            <div class="gauge-scale">
-              <span>Probability of abnormality <strong id="gauge-value"></strong></span>
-              <span>Referral threshold <strong id="gauge-threshold"></strong></span>
-            </div>
-          </div>
-        </div>
-
-        <div id="quality" class="notice notice-warn" hidden>
-          <strong>Image quality</strong>
-          <ul id="quality-list"></ul>
-        </div>
-
-        <!-- Leading finding -->
-        <div class="finding">
-          <p class="section-caption">Most likely finding</p>
-          <div class="finding-row">
-            <p class="finding-value" id="finding-value"></p>
-            <span class="tag tag-muted" id="finding-flag" hidden>Low confidence</span>
-          </div>
-          <p class="finding-desc" id="finding-desc"></p>
-          <div class="readout-score">
-            <div class="scorebar"><span id="finding-fill" class="scorebar-fill"></span></div>
-            <span class="scorebar-figure" id="finding-prob"></span>
-          </div>
-          <p class="finding-note" id="finding-note" hidden></p>
-        </div>
-
-        <div id="groups" class="group-line" hidden></div>
-
-        <!-- Differential -->
-        <p class="section-caption section-sep">Differential</p>
-        <table class="ranking">
-          <caption class="sr-only">Calibrated probability for each condition</caption>
-          <tbody id="ranking-body"></tbody>
+    <section class="card">
+      <div class="card-head"><h2>By Condition</h2></div>
+      <div class="card-body table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Condition</th><th class="num">Reviewed cases</th><th class="num">Recognised</th><th class="num">Correct when predicted</th></tr></thead>
+          <tbody data-r="per-class"></tbody>
         </table>
-        <button type="button" id="ranking-toggle" class="textbtn ranking-toggle no-print">
-          Show all twelve conditions
-        </button>
-
-        <p class="advisory">
-          Screening aid only. Not a clinical diagnosis. Findings require review by a
-          qualified ENT practitioner before any treatment decision.
-        </p>
-
-        <div class="result-actions no-print">
-          <button type="button" id="print-btn" class="secondary">Print result</button>
-          <span class="result-meta" id="result-meta"></span>
-        </div>
       </div>
+    </section>
+    <div class="split">
+      <section class="card">
+        <div class="card-head"><h2>Most Common Corrections</h2></div>
+        <div class="card-body"><ul class="list-plain" data-r="corrections"></ul></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><h2>Other Diagnoses Entered</h2></div>
+        <div class="card-body"><ul class="list-plain" data-r="others"></ul></div>
+      </section>
+    </div>
+  </main>
+</template>
 
+<!-- ---------- Admin ---------- -->
+<template id="tpl-admin">
+  <main class="shell" style="padding-top:24px;padding-bottom:48px">
+    <div class="tabs" role="tablist">
+      <button type="button" data-tab="users" class="is-active">Users</button>
+      <button type="button" data-tab="models">Model and Retraining</button>
+      <button type="button" data-tab="audit">Audit Log</button>
+    </div>
+    <div data-r="panel"></div>
+  </main>
+</template>
+
+<template id="tpl-admin-users">
+  <section class="card" style="margin-bottom:20px">
+    <div class="card-head"><h2>Add User</h2></div>
+    <div class="card-body">
+      <form class="inline-form" data-r="add-user" novalidate>
+        <div class="field"><label>Username</label><input type="text" name="username" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label>Full name</label><input type="text" name="full_name" autocomplete="off"></div>
+        <div class="field"><label>Role</label>
+          <select name="role"><option value="clinician">Clinician</option><option value="admin">Administrator</option></select></div>
+        <div class="field"><label>Temporary password</label><input type="text" name="password" autocomplete="off" spellcheck="false"></div>
+        <button type="submit" class="btn btn-primary">Add user</button>
+      </form>
+      <p class="field-hint" style="margin-top:8px">The user must choose their own password at first sign in.
+        <button type="button" class="textbtn" data-r="generate">Generate a temporary password</button></p>
+      <div class="notice notice-error" data-r="error" role="alert" hidden style="margin-top:10px"></div>
     </div>
   </section>
-
-  <!-- ================= Validation ================= -->
-  <section class="card card-wide no-print" id="validation" hidden aria-labelledby="val-h">
-    <div class="card-head">
-      <h2 id="val-h">Validation</h2>
-      <a class="textlink" href="report.html" target="_blank" rel="noopener">Full validation report</a>
-    </div>
-    <div class="card-body">
-      <div class="stats">
-        <div class="stat">
-          <span class="stat-label">Sensitivity</span>
-          <span class="stat-value" id="v-sens"></span>
-          <span class="stat-ci" id="v-sens-ci"></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Specificity</span>
-          <span class="stat-value" id="v-spec"></span>
-          <span class="stat-ci" id="v-spec-ci"></span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">AUROC</span>
-          <span class="stat-value" id="v-auc"></span>
-          <span class="stat-ci">abnormal vs normal</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Held out test images</span>
-          <span class="stat-value" id="v-n"></span>
-          <span class="stat-ci">never used in training</span>
-        </div>
-      </div>
-      <p class="stats-note">
-        Measured on a held out split grouped so that no ear appears in both training
-        and test. Retrospective data from public datasets; not yet validated on
-        this clinic's equipment.
-      </p>
-    </div>
-  </section>
-
-  <section class="card card-wide no-print" aria-labelledby="ref-h">
-    <div class="card-head">
-      <h2 id="ref-h">Classification Reference</h2>
-    </div>
-    <div class="card-body">
-      <table class="reference">
-        <tbody id="reference-body"></tbody>
+  <section class="card">
+    <div class="card-head"><h2>Users</h2></div>
+    <div class="card-body table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last sign in</th><th></th></tr></thead>
+        <tbody data-r="rows"></tbody>
       </table>
     </div>
   </section>
+</template>
 
-</main>
+<template id="tpl-admin-models">
+  <section class="card" style="margin-bottom:20px">
+    <div class="card-head"><h2>Retraining</h2></div>
+    <div class="card-body">
+      <p class="review-intro" style="margin-bottom:14px">
+        Reviewed cases are added to the original training data and a candidate model is
+        trained. It goes live only if it is at least as good as the current model on the
+        frozen test set and on held out local cases, and only when an administrator approves it.
+      </p>
+      <div class="stats" data-r="readiness"></div>
+      <div class="caution" data-r="problems" hidden style="margin-top:14px"></div>
+      <div style="margin-top:14px"><button type="button" class="btn btn-primary" data-r="start">Start retraining</button></div>
+      <div data-r="job" hidden style="margin-top:16px">
+        <p class="section-caption">Current run</p>
+        <p data-r="job-status" style="margin:0;font-size:13px"></p>
+        <pre class="log" data-r="job-log"></pre>
+      </div>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-head"><h2>Model Versions</h2></div>
+    <div class="card-body" data-r="versions"></div>
+  </section>
+</template>
 
-<footer class="colophon no-print">
-  <div class="shell colophon-inner">
-    <span>Nawaloka Hospital PLC, Research and Education Foundation</span>
-    <span class="colophon-note">Research use only. Not a substitute for clinical judgement.</span>
-  </div>
-</footer>
+<template id="tpl-admin-audit">
+  <section class="card">
+    <div class="card-head"><h2>Recent Activity</h2></div>
+    <div class="card-body table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Item</th><th>From</th></tr></thead>
+        <tbody data-r="rows"></tbody>
+      </table>
+    </div>
+  </section>
+</template>
 
-<script src="js/app.js"></script>
+<!-- ---------- Account ---------- -->
+<template id="tpl-account">
+  <main class="shell" style="padding-top:28px;padding-bottom:48px;max-width:520px">
+    <section class="card">
+      <div class="card-head"><h2>Change Password</h2></div>
+      <div class="card-body"><form data-r="form" novalidate></form></div>
+    </section>
+  </main>
+</template>
+
+<script src="js/core.js"></script>
+<script src="js/result.js"></script>
+<script src="js/views.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

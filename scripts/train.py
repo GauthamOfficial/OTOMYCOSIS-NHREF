@@ -44,7 +44,7 @@ SEED = 1337
 UNFREEZE_FROM = "block_9_expand"
 
 
-def build_normalized_cache(rows):
+def build_normalized_cache(rows, write_stats=True):
     """Normalise every image once and record input statistics.
 
     The brightness and sharpness ranges of the training split are saved so
@@ -81,6 +81,8 @@ def build_normalized_cache(rows):
             "p95": float(np.percentile(values, 95)),
             "p99": float(np.percentile(values, 99)),
         }
+    if not write_stats:
+        return
     with open(INPUT_STATS, "w", encoding="utf-8") as fh:
         json.dump(summary, fh, indent=2)
     print("  input ranges written to", INPUT_STATS)
@@ -196,12 +198,28 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--epochs-head", type=int, default=10)
     parser.add_argument("--epochs-finetune", type=int, default=18)
+    parser.add_argument("--extra-rows",
+                        help="CSV of additional training images (path,label), e.g. reviewed clinic cases")
+    parser.add_argument("--output", default=MODEL_OUT, help="where to save the trained model")
+    parser.add_argument("--summary", default=os.path.join(ARTIFACTS, "training_summary.json"))
     args = parser.parse_args()
+    candidate = os.path.abspath(args.output) != os.path.abspath(MODEL_OUT)
 
     keras.utils.set_random_seed(SEED)
 
     with open(MANIFEST, newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
+
+    # Reviewed clinic cases join the training split only. Validation and test
+    # stay exactly as prepared, so every model is judged on the same images.
+    if args.extra_rows:
+        with open(args.extra_rows, newline="", encoding="utf-8") as fh:
+            extra = list(csv.DictReader(fh))
+        for i, row in enumerate(extra):
+            rows.append({"path": row["path"], "label": row["label"], "split": "train",
+                         "cluster": "local#%d" % i, "source": "local"})
+        print("added %d reviewed clinic cases to the training split" % len(extra), flush=True)
+
     with open(LABELS, encoding="utf-8") as fh:
         meta = json.load(fh)
     classes = meta["classes"]
@@ -209,7 +227,8 @@ def main():
     num_classes = len(classes)
 
     print("=== normalising images ===", flush=True)
-    build_normalized_cache(rows)
+    # Only the original training data defines the expected input range.
+    build_normalized_cache(rows, write_stats=not candidate)
 
     train_ds, n_train, train_labels = build_dataset(rows, class_to_index, "train", True)
     val_ds, n_val, _ = build_dataset(rows, class_to_index, "val", False)
@@ -267,12 +286,13 @@ def main():
         print("\nrestored best weights from epoch %d, val_macro_f1 %.4f"
               % (tracker.best_epoch, tracker.best), flush=True)
 
-    os.makedirs(os.path.dirname(MODEL_OUT), exist_ok=True)
-    model.save(MODEL_OUT)
+    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+    model.save(args.output)
 
     # The class order travels with the weights. Not recording it is what made
     # the original model unusable.
-    with open(os.path.join(ARTIFACTS, "training_summary.json"), "w", encoding="utf-8") as fh:
+    os.makedirs(os.path.dirname(os.path.abspath(args.summary)), exist_ok=True)
+    with open(args.summary, "w", encoding="utf-8") as fh:
         json.dump({
             "classes": classes,
             "backbone": "MobileNetV2 (ImageNet)",
@@ -281,6 +301,7 @@ def main():
             "best_val_macro_f1": tracker.best,
             "history": tracker.history,
             "train_images": n_train,
+            "extra_rows": args.extra_rows and os.path.basename(args.extra_rows),
             "val_images": n_val,
             "input_size": SIZE,
             "preprocessing": "imaging.normalize then mobilenet_v2.preprocess_input",
@@ -288,7 +309,7 @@ def main():
             "trained_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }, fh, indent=2)
 
-    print("saved model to", MODEL_OUT, flush=True)
+    print("saved model to", args.output, flush=True)
 
 
 if __name__ == "__main__":

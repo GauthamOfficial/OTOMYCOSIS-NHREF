@@ -1,16 +1,19 @@
 @echo off
-rem Ear Condition Screening - one time setup
+rem Ear Disease Detection System - one time setup
 rem Nawaloka Hospital PLC Research and Education Foundation
 rem
-rem Creates a private Python environment in .venv and installs the
-rem dependencies. Run once; afterwards use start.bat.
+rem 1. Creates a private Python environment in .venv and installs dependencies.
+rem 2. Runs the setup wizard: creates the PostgreSQL database, writes .env and
+rem    creates the first administrator account.
+rem
+rem PostgreSQL must already be installed. See docs\SETUP_GUIDE.md.
 
 setlocal
 cd /d "%~dp0"
 
 echo.
-echo  Ear Condition Screening - setup
-echo  ===============================
+echo  Ear Disease Detection System - setup
+echo  ====================================
 echo.
 
 if exist ".venv\Scripts\python.exe" (
@@ -53,6 +56,23 @@ echo.
 ".venv\Scripts\python.exe" -m pip install -r requirements.txt --timeout 120 --retries 10 --disable-pip-version-check
 if errorlevel 1 goto :failed
 
+if exist ".env" (
+    echo.
+    echo  Settings already exist in .env, skipping the database wizard.
+    echo  To set up again, delete .env and run setup.bat.
+    goto :done
+)
+
+echo.
+echo  Database and administrator setup
+echo  --------------------------------
+echo  You will need the password chosen for the "postgres" user when
+echo  PostgreSQL was installed. It is used once and not stored.
+echo.
+".venv\Scripts\python.exe" scripts\manage.py setup
+if errorlevel 1 goto :failed
+
+:done
 echo.
 echo  Setup complete. Double click start.bat to launch.
 echo.

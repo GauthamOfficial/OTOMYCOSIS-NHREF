@@ -2,10 +2,12 @@
 
 **Nawaloka Hospital PLC, Research and Education Foundation (NHREF)**
 
-A screening aid that reads a single otoscope image of the tympanic membrane and
-recommends whether the ear should be referred for ENT review. It also names the
-most likely of twelve conditions, shows the full calibrated differential, and
-highlights the regions of the image the model relied on.
+A screening aid for otoscope images of the tympanic membrane. It recommends
+whether an ear should be referred for ENT review, names the most likely of
+twelve conditions with a calibrated differential, and shows which regions of
+the image the model relied on. Surgeons confirm or correct every finding;
+those reviews measure real world performance on our own patients and feed a
+supervised, approval gated retraining process.
 
 > **Research use only.** This is not a medical device and has not been
 > prospectively validated. Every result must be reviewed by a qualified ENT
@@ -27,49 +29,53 @@ selection or calibration:
 
 Of 501 abnormal test ears, 15 were not referred; 11 of those were
 myringosclerosis, which is usually benign. No cholesteatoma was missed. The full
-breakdown, including every operating point, per condition results and the
-limitations below, is in the [validation report](docs/VALIDATION_REPORT.md),
-which is generated from the model on disk and also served by the application.
+breakdown is in the [validation report](docs/VALIDATION_REPORT.md), which is
+generated from the model in service and also available inside the application.
 
-## Quick start on Windows
+## Getting started
 
-You need **Python 3.11** (3.9 and 3.10 also work; 3.12 and later do not, because
-TensorFlow 2.15 does not support them). Install it from
-[python.org](https://www.python.org/downloads/release/python-3119/) and tick
-*Add python.exe to PATH*.
+Full instructions are in the **[Setup Guide](docs/SETUP_GUIDE.md)**. In short,
+on Windows:
 
-1. Double click **`setup.bat`**. It creates a private environment and installs
-   the dependencies. TensorFlow is about 300 MB, so allow a few minutes.
-2. Double click **`start.bat`**. The model loads in a few seconds and the
-   interface opens at <http://localhost:5000>.
-3. Drop an otoscope image onto the page and press **Run Analysis**.
+1. Install **PostgreSQL** (14 or later) and **Python 3.11**. Python 3.12 and
+   later will not work, because TensorFlow 2.15 does not support them.
+2. Double click **`setup.bat`**. It installs the dependencies, creates the
+   database and a limited database user, writes the settings file and creates
+   the first administrator.
+3. Double click **`start.bat`** and sign in at <http://localhost:5000>.
+4. Under **Admin**, add an account for each surgeon.
 
-If you have the dataset, `python scripts/export_samples.py` writes one held
-out test image per condition into `samples/` for a quick demonstration.
+How to use the system day to day is in the **[User Guide](docs/USER_GUIDE.md)**.
 
-On macOS or Linux:
+## The clinical workflow
 
-```bash
-python3.11 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python app.py --open
-```
+1. A surgeon **signs in** and enters the patient's hospital record number, age,
+   sex and which ear was examined. No names are stored.
+2. They upload the otoscope image and **run the analysis**. The result is saved
+   to the patient's record with the date, time, clinician and model version.
+3. They **review** the finding: confirm it with one click, select the actual
+   condition from the list (the prediction is always first), or type a
+   diagnosis that is not listed.
+4. Every examination stays available in **History**, and the **Dashboard**
+   shows how the model performs against the surgeons' verdicts.
+5. An administrator can **retrain** once enough reviews exist. The candidate
+   goes live only if it is at least as good as the current model and an
+   administrator approves it.
 
-## What the interface shows
+## What a result shows
 
 | Section | Meaning |
 | --- | --- |
 | **Screening recommendation** | *Refer for ENT review* or *No abnormality detected*, with the probability of an abnormal ear drawn against the referral threshold. |
-| **Most likely finding** | The leading condition, its calibrated probability and a one line description. Marked *low confidence* when the top two conditions are close. |
-| **Chronic group** | When a chronic otitis media subtype is involved, the combined probability across all five chronic subtypes, which is more reliable than any one subtype. |
-| **Differential** | Every condition, ranked, with calibrated probabilities. |
-| **Model attention** | The image exactly as the model received it, and the same image with the regions that drove the finding tinted blue. |
-| **Validation** | The headline test results and a link to the full report. |
+| **Most likely finding** | The leading condition and its calibrated probability. Marked *low confidence* when the top two conditions are close. |
+| **Chronic group** | The combined probability across all five chronic otitis media subtypes, more reliable than any one subtype. |
+| **Differential** | Every condition, ranked, most likely first. |
+| **Model attention** | The image as the model received it, and the regions that drove the finding tinted blue. |
+| **Surgeon review** | Confirm, correct or enter another diagnosis; every verdict is kept. |
 
-Uncertainty always resolves toward referral. If the most likely finding is a
-normal ear but the model is not confident enough to rule disease out, it still
-recommends referral and says so. **Print result** produces a one page summary
-for the patient record, with the recommendation first.
+Uncertainty always resolves toward referral: if the model cannot confidently
+call an ear normal, it recommends referral and says so. **Print result**
+produces a one page summary for the patient's notes.
 
 ## Conditions recognised
 
@@ -89,8 +95,39 @@ for the patient record, with the recommendation first.
 | Normal Ear | No abnormality detected. |
 
 Otomycosis is **not** among them: the dataset contains no otomycosis images.
+Surgeons can record it with *Other diagnosis*, which is how enough cases can be
+collected to add it as a category later.
 
-## How it works
+## Learning from the surgeons' reviews
+
+This is supervised retraining on specialist verified labels, deliberately not
+live or automatic learning. A model that updated itself from every click could
+be degraded silently by a handful of mistaken reviews, with nobody noticing.
+Instead:
+
+1. Reviewed cases accumulate. Diagnoses entered as *Other* are kept but not
+   trained on, since there is no category to learn them as.
+2. An administrator starts a retraining run once at least 50 usable reviews
+   exist. It runs in the background; the current model stays in service.
+3. About 30 percent of reviewed **patients** are held out, so that both ears
+   and repeat visits stay on one side of the split. The rest are added to the
+   original training data.
+4. Any uploaded image identical to an image in the frozen validation or test
+   set is excluded from training, so the comparison cannot be contaminated.
+5. The candidate is calibrated and tested exactly as the current model was,
+   then both are scored on the held out local patients.
+6. **The validation gate.** A candidate worse than the current model on the
+   frozen test set or on the local patients cannot be approved.
+7. A candidate that passes still waits for an administrator to **approve** it.
+   Approval switches every user to the new model without a restart and
+   regenerates the validation report. Each examination records the version
+   that produced it.
+
+The surgeons' reviews matter even without retraining: they are a running,
+prospective measurement of performance on this clinic's patients and
+equipment, which the public dataset results cannot provide.
+
+## How the model works
 
 1. **Field of view normalisation.** The image is cropped to its illuminated
    field, squared, resized to 224 pixels and masked to one fixed circle. The
@@ -98,11 +135,11 @@ Otomycosis is **not** among them: the dataset contains no otomycosis images.
    without this step the network learned to recognise the dataset rather than
    the ear. The same function runs at training and at inference.
 2. **Classification.** MobileNetV2, initialised from ImageNet and fine tuned
-   on 3,326 training images. It is small enough to run on an ordinary laptop
-   CPU in about a third of a second.
+   on 3,326 training images. It runs on an ordinary CPU in about a third of a
+   second.
 3. **Orientation averaging.** The prediction is averaged over all eight
    rotations and reflections of the image, so the result does not depend on
-   how the otoscope was held. This is verified by the test suite.
+   how the otoscope was held. The test suite verifies this.
 4. **Calibration.** Probabilities are temperature scaled so that a stated
    confidence matches an observed frequency.
 5. **Referral threshold.** One minus the probability of a normal ear is
@@ -131,8 +168,9 @@ classes: `Ear wax` with `Cerumen_Impaction`, `tympanoskleros` with
 ## Known limitations
 
 - **Retrospective, public data.** Performance on this clinic's otoscopes is
-  unknown until it is measured on local images. That is the most important
-  next step before any clinical use.
+  unknown until it is measured on local images. The surgeons' reviews on the
+  Dashboard are that measurement, and the most important evidence to gather
+  before any clinical reliance.
 - **Performance depends on the source.** Recall is highest on the largest
   source dataset. The results for the other two sources are the better guide
   to performance on unfamiliar equipment.
@@ -157,68 +195,105 @@ Measured on the test split, with each threshold chosen on validation:
 | 99% | 99.0% | 72.8% | 5 | 59 |
 
 To change it, run `python scripts/calibrate.py --target-sensitivity 0.99` (or
-another value) and restart. The report regenerates automatically. Which
-conditions should trigger referral at all, for example whether uncomplicated
-cerumen should be managed locally, is a clinical decision for the supervising
-ENT surgeon.
+another value) and restart. Which conditions should trigger referral at all,
+for example whether uncomplicated cerumen should be managed locally, is a
+clinical decision for the supervising ENT surgeon.
 
-## Retraining with new data
+## Security and privacy
 
-Add or correct images in the `Dataset/` folders (one folder per condition;
-update `TAXONOMY` in `scripts/prepare_dataset.py` for any new folder), then:
+**Patient data.** Patients are identified by hospital record number only;
+names, dates of birth and contact details are never stored. Images are kept in
+a storage folder outside the web root under random names, never under the
+uploaded filename (clinic filenames often contain patient names), and are only
+served to signed in users. Uploaded filenames are never logged or stored.
+Results are marked `no-store` so browsers do not cache them.
+
+**Accounts.** Passwords are hashed with scrypt and must be at least ten
+characters mixing letters with numbers or symbols. New accounts receive a
+temporary password that must be changed at first sign in. Five failed sign ins
+lock an account for fifteen minutes. Users are signed out after thirty minutes
+of inactivity. There are two roles: clinicians screen and review;
+administrators also manage users, retraining and model approval.
+
+**Sessions.** Sign in issues a short lived access token, held only in the
+page's memory, and a refresh token in an httpOnly, SameSite Strict cookie
+protected by a CSRF token. Changing or resetting a password, deactivating an
+account or changing a role invalidates every open session for that user.
+
+**Database.** The service connects as a dedicated PostgreSQL user that owns
+only its own database; the superuser password is used once at setup and never
+stored. Reviews are append only, and every sign in, examination, review,
+account change and model approval is recorded in an audit log.
+
+**Secrets** live in a `.env` file that is excluded from git. By default the
+service only accepts connections from the computer it runs on. See the Setup
+Guide for serving a clinic network over HTTPS, and for backing up both the
+database and the image store.
+
+## API
+
+All endpoints except health and sign in require `Authorization: Bearer <token>`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/v1/auth/login` | Sign in; returns an access token and sets the refresh cookie. |
+| `POST` | `/api/v1/auth/refresh` | New access token from the refresh cookie (needs `X-CSRF-TOKEN`). |
+| `POST` | `/api/v1/auth/password` | Change your password. |
+| `POST` | `/api/v1/examinations` | Multipart form: `record_no`, `age`, `sex`, `ear`, `notes`, `file`. Analyses and records. |
+| `GET` | `/api/v1/examinations` | History, filterable by `q` and `status`, paginated. |
+| `GET` | `/api/v1/examinations/<id>` | One examination with its result and reviews. |
+| `GET` | `/api/v1/examinations/<id>/image/<kind>` | `original`, `view` or `overlay` image. |
+| `POST` | `/api/v1/examinations/<id>/review` | `verdict` of `correct`, `corrected` (with `true_class`) or `other` (with `other_label`). |
+| `GET` | `/api/v1/patients/<record_no>` | Whether a record number exists. |
+| `GET` | `/api/v1/stats` | Performance against the surgeons' reviews. |
+| `GET` | `/api/v1/model` | Model version, threshold, test results, classes. |
+| `GET` | `/api/v1/health` | Service status. |
+| | `/api/v1/admin/...` | Users, model versions, retraining, approval and the audit log. Administrators only. |
+
+## Retraining from scratch
+
+The in application retraining adds reviewed cases to the existing training
+data. To rebuild everything, for example after adding a new condition folder
+to `Dataset/` (and to `TAXONOMY` in `scripts/prepare_dataset.py`):
 
 ```bash
 python scripts/prepare_dataset.py   # normalise, group by ear, split
 python scripts/train.py             # about 40 minutes on a 4 core CPU
 python scripts/calibrate.py         # calibrate, test once, write the report
-python -m pytest                    # 23 checks, including privacy and orientation
+python -m pytest                    # the full test suite
 ```
 
 The class order is written to `artifacts/labels.json` and travels with the
 weights, so a retrained model can never silently mislabel its outputs.
 
-## Privacy
-
-Uploaded images are read into memory, analysed and discarded. Nothing derived
-from a patient image is written to disk, uploaded filenames are never logged
-(clinic filenames often contain patient names), and responses are marked
-`no-store` so browsers do not cache them. A test in the suite fails if any file
-is created during an analysis. By default the service only accepts connections
-from the same computer.
-
-## Deployment
-
-`start.bat` serves the interface on the local machine only. To make it
-available to other computers on a clinic network, run
-`python app.py --host 0.0.0.0` and place it behind a reverse proxy that
-provides HTTPS and access control. On Linux, `uwsgi.ini` and `Procfile`
-configure uWSGI.
-
-### API
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `POST` | `/api/v1/analyse` | Multipart form with a `file` field. Returns the referral, finding, differential, chronic rollup, image quality warnings and attention images. |
-| `GET` | `/api/v1/model` | Model version, referral threshold, test results and the class list. |
-| `GET` | `/api/v1/health` | Service status. |
-
 ## Project structure
 
 ```
-app.py                     Entry point; serves with Waitress
-setup.bat, start.bat       One click setup and launch on Windows
+app.py                      Entry point; serves with Waitress
+setup.bat, start.bat        One click setup and launch on Windows
+.env.example                Settings template; setup writes the real .env
 src/ear_detection/
-    imaging.py             Field of view normalisation, shared with training
-    model.py               Inference, calibration, attention maps
-    api.py                 HTTP API and static file serving
-    config.py              Paths, class names and descriptions
-frontend/                  Web interface and the generated report page
-models/ear_classifier.keras
-artifacts/                 Label order, split manifest, calibration, evaluation
-scripts/                   prepare_dataset, train, calibrate, report, export_samples
-tests/                     Imaging, API and report tests
-docs/VALIDATION_REPORT.md  Generated validation report
-notebooks/                 Experiments from the original prototype (historical)
+    api.py                  Application factory and wiring
+    auth.py                 Sign in, tokens, roles, password rules
+    exams.py                Examinations, reviews, images, history
+    stats.py                Performance against the surgeons' reviews
+    admin.py                Users, model versions, retraining, audit log
+    db.py                   Database schema
+    analysis.py             Turning model output into a result
+    model.py                Inference, calibration, attention maps
+    imaging.py              Field of view normalisation, shared with training
+    registry.py             Model versions and hot swapping
+    retraining.py           Starting and monitoring retraining runs
+    storage.py              Patient image storage
+    reporting.py            Validation report rendering
+    config.py               Settings, class names and descriptions
+frontend/                   Web interface and the generated report page
+models/ear_classifier.keras The model shipped as version 2.0.0
+artifacts/                  Label order, split manifest, calibration, evaluation
+scripts/                    manage, prepare_dataset, train, calibrate, retrain, report
+tests/                      Authentication, examinations, administration, model, imaging, report
+docs/                       Setup guide, user guide and validation report
+notebooks/                  Experiments from the original prototype (historical)
 ```
 
 ## References

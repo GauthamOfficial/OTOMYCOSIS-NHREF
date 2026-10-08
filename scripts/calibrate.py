@@ -20,15 +20,13 @@ import csv
 import json
 import math
 import os
-import re
-import sys
 import time
 from collections import Counter, defaultdict
 
 import numpy as np
 from PIL import Image
 
-from common import ARTIFACTS, BASE_DIR, normalized_path, source_of
+from common import ARTIFACTS, normalized_path, source_of
 from ear_detection import config
 from ear_detection.model import Classifier, assess, softmax
 from report import REPORT_HTML, REPORT_MD, write_reports
@@ -127,8 +125,14 @@ def referral_threshold(disease_scores, target):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--target-sensitivity", type=float, default=0.95)
+    parser.add_argument("--target-sensitivity", type=float, default=0.97)
+    parser.add_argument("--model", default=config.DEFAULT_MODEL_PATH, help="model to calibrate")
+    parser.add_argument("--out-dir",
+                        help="write calibration and evaluation here instead of artifacts/, "
+                             "and leave the published report untouched (used for candidates)")
     args = parser.parse_args()
+    calibration_out = os.path.join(args.out_dir, "calibration.json") if args.out_dir         else config.CALIBRATION_FILE
+    evaluation_out = os.path.join(args.out_dir, "evaluation_report.json") if args.out_dir         else config.EVALUATION_FILE
 
     with open(config.LABELS_FILE, encoding="utf-8") as fh:
         labels = json.load(fh)
@@ -144,7 +148,7 @@ def main():
     y_val = np.array([index[r["label"]] for r in val_rows])
     y_test = np.array([index[r["label"]] for r in test_rows])
 
-    classifier = Classifier(config.MODEL_PATH, classes, temperature=1.0, use_tta=True)
+    classifier = Classifier(args.model, classes, temperature=1.0, use_tta=True)
 
     print("scoring validation split (%d images x 8 views)" % len(val_rows), flush=True)
     val_views = collect_logits(classifier, val_rows)
@@ -296,7 +300,9 @@ def main():
         "grouping": labels.get("grouping", {}),
     }
 
-    with open(config.CALIBRATION_FILE, "w", encoding="utf-8") as fh:
+    if args.out_dir:
+        os.makedirs(args.out_dir, exist_ok=True)
+    with open(calibration_out, "w", encoding="utf-8") as fh:
         json.dump({
             "temperature": temperature,
             "referral_threshold": threshold,
@@ -306,18 +312,20 @@ def main():
             "generated_at": report["generated_at"],
         }, fh, indent=2)
 
-    with open(config.EVALUATION_FILE, "w", encoding="utf-8") as fh:
+    with open(evaluation_out, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2)
 
-    write_reports(report)
+    if not args.out_dir:
+        write_reports(report)
 
     print("\nreferral at threshold %.4f: sensitivity %.3f  specificity %.3f  AUROC %.3f"
           % (threshold, referral["sensitivity"], referral["specificity"], referral["auroc"]))
     print("test macro F1 %.4f   accuracy %.4f" % (test_macro, report["test"]["accuracy"]))
-    print("wrote", config.CALIBRATION_FILE)
-    print("wrote", config.EVALUATION_FILE)
-    print("wrote", REPORT_MD)
-    print("wrote", REPORT_HTML)
+    print("wrote", calibration_out)
+    print("wrote", evaluation_out)
+    if not args.out_dir:
+        print("wrote", REPORT_MD)
+        print("wrote", REPORT_HTML)
 
 
 if __name__ == "__main__":
