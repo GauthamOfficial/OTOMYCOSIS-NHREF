@@ -288,6 +288,62 @@
     load();
   }
 
+  /* ======================= Records ======================= */
+
+  function recordsPanel(panel) {
+    App.mount(panel, "tpl-admin-records");
+    var form = r(panel, "clear-form");
+    var button = r(panel, "clear");
+    var phrase = "";
+
+    function statBox(label, value, sub) {
+      var box = el("div", "stat");
+      box.appendChild(el("span", "stat-label", label));
+      box.appendChild(el("span", "stat-value", value));
+      box.appendChild(el("span", "stat-ci", sub || ""));
+      return box;
+    }
+
+    function load() {
+      App.request("GET", "/admin/records").then(function (d) {
+        phrase = d.confirm_phrase;
+        r(panel, "phrase").textContent = phrase;
+        var counts = r(panel, "counts");
+        counts.textContent = "";
+        counts.appendChild(statBox("Patients", d.patients, "record numbers"));
+        counts.appendChild(statBox("Examinations", d.examinations, ""));
+        counts.appendChild(statBox("Reviews", d.reviews, "including earlier verdicts"));
+        counts.appendChild(statBox("Stored images", App.formatSize(d.image_bytes), d.image_files + " files"));
+      }).catch(function (err) { App.toast(err.message, true); });
+    }
+
+    function refreshButton() {
+      button.disabled = !(phrase && form.elements.confirm.value.trim() === phrase && form.elements.password.value);
+    }
+    form.addEventListener("input", refreshButton);
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (button.disabled) { return; }
+      if (!window.confirm("Delete every patient record, examination, review and image? This cannot be undone.")) { return; }
+      button.disabled = true;
+      App.request("POST", "/admin/records/clear", {
+        json: { confirm: form.elements.confirm.value.trim(), password: form.elements.password.value }
+      }).then(function (d) {
+        form.reset();
+        App.showError(r(panel, "error"), "");
+        App.toast("Cleared " + d.cleared.examinations + " examinations and " + d.cleared.patients + " patient records.");
+        load();
+      }).catch(function (err) {
+        App.showError(r(panel, "error"), err.message);
+        form.elements.password.value = "";
+        refreshButton();
+      });
+    });
+
+    load();
+  }
+
   /* ======================= Audit ======================= */
 
   var ACTIONS = {
@@ -296,7 +352,8 @@
     user_created: "Created user", user_updated: "Updated user",
     examination_created: "Analysed examination", examination_reviewed: "Reviewed examination",
     retraining_started: "Started retraining", model_approved: "Approved model",
-    model_rejected: "Rejected model"
+    model_rejected: "Rejected model", examination_deleted: "Deleted examination",
+    records_cleared: "Cleared all records"
   };
 
   function auditPanel(panel) {
@@ -308,7 +365,9 @@
         tr.appendChild(el("td", null, App.formatDate(e.at)));
         tr.appendChild(el("td", null, e.user || (e.detail && e.detail.username) || "Unknown"));
         tr.appendChild(el("td", null, ACTIONS[e.action] || e.action));
-        tr.appendChild(el("td", "muted", e.entity ? e.entity.replace("_", " ") + " " + e.entity_id : ""));
+        var item = e.entity ? e.entity.replace("_", " ") : "";
+        if (e.entity_id) { item += " " + e.entity_id; }
+        tr.appendChild(el("td", "muted", item));
         tr.appendChild(el("td", "muted", e.ip || ""));
         body.appendChild(tr);
       });
@@ -321,7 +380,7 @@
     App.mount(view, "tpl-admin");
     var panel = r(view, "panel");
     var tabs = view.querySelectorAll("[data-tab]");
-    var panels = { users: usersPanel, models: modelsPanel, audit: auditPanel };
+    var panels = { users: usersPanel, models: modelsPanel, records: recordsPanel, audit: auditPanel };
 
     function open(name) {
       stopPolling();
@@ -333,6 +392,6 @@
     });
     open("users");
   };
-  App.views.admin.title = ["Administration", "User accounts, model versions and the audit log."];
+  App.views.admin.title = ["Administration", "User accounts, model versions, records and the audit log."];
   App.views.admin.leave = stopPolling;
 })(window.App);

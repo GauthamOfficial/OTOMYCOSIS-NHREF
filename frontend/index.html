@@ -404,7 +404,25 @@
     <div class="column">
       <section class="card">
         <div class="card-head"><h2>Examination</h2><a class="textlink no-print" href="#/history">Back to history</a></div>
-        <div class="card-body"><dl class="facts" data-r="facts"></dl></div>
+        <div class="card-body">
+          <dl class="facts" data-r="facts"></dl>
+          <div class="no-print" data-r="delete-area" hidden>
+            <button type="button" class="textbtn textbtn-danger" data-r="delete-open">Delete this examination</button>
+            <form class="danger-form" data-r="delete-form" hidden novalidate>
+              <p>This permanently deletes the examination, its reviews and its images. It cannot be undone.
+                 The reason is kept in the audit log.</p>
+              <div class="field">
+                <label>Reason for deleting</label>
+                <input type="text" name="reason" maxlength="300" placeholder="e.g. Wrong patient record number">
+              </div>
+              <div class="notice notice-error" data-r="delete-error" role="alert" hidden></div>
+              <div class="review-actions">
+                <button type="submit" class="btn btn-danger-solid">Delete permanently</button>
+                <button type="button" class="btn" data-r="delete-cancel">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       </section>
       <section class="card">
         <div class="card-head"><h2>Original Image</h2></div>
@@ -481,6 +499,7 @@
     <div class="tabs" role="tablist">
       <button type="button" data-tab="users" class="is-active">Users</button>
       <button type="button" data-tab="models">Model and Retraining</button>
+      <button type="button" data-tab="records">Records</button>
       <button type="button" data-tab="audit">Audit Log</button>
     </div>
     <div data-r="panel"></div>
@@ -537,6 +556,47 @@
   <section class="card">
     <div class="card-head"><h2>Model Versions</h2></div>
     <div class="card-body" data-r="versions"></div>
+  </section>
+</template>
+
+<template id="tpl-admin-records">
+  <section class="card" style="margin-bottom:20px">
+    <div class="card-head"><h2>Stored Records</h2></div>
+    <div class="card-body">
+      <div class="stats" data-r="counts"></div>
+      <p class="stats-note">
+        To remove a single examination, for example one recorded against the wrong patient,
+        open it from History and use <strong>Delete this examination</strong>.
+      </p>
+    </div>
+  </section>
+  <section class="card card-danger">
+    <div class="card-head"><h2>Clear All Records</h2></div>
+    <div class="card-body">
+      <p class="danger-lead">
+        Permanently deletes <strong>every patient, examination, review and stored image</strong>.
+        Use it to remove test data before the system is used for real. It cannot be undone.
+      </p>
+      <ul class="danger-list">
+        <li>Kept: user accounts, model versions and the audit log, which records this action.</li>
+        <li>Reviewed cases are what retraining learns from; they will be gone.</li>
+        <li>Patient records may be subject to hospital retention rules. Do not clear real records without approval.</li>
+      </ul>
+      <form data-r="clear-form" novalidate>
+        <div class="field-row">
+          <div class="field">
+            <label>Type <strong data-r="phrase"></strong> to confirm</label>
+            <input type="text" name="confirm" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label>Your password</label>
+            <input type="password" name="password" autocomplete="current-password">
+          </div>
+        </div>
+        <div class="notice notice-error" data-r="error" role="alert" hidden></div>
+        <button type="submit" class="btn btn-danger-solid" data-r="clear" disabled>Clear all records</button>
+      </form>
+    </div>
   </section>
 </template>
 

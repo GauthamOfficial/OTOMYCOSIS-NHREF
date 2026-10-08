@@ -255,6 +255,48 @@ def get_examination(exam_id):
     return response
 
 
+@exams_bp.route("/examinations/<int:exam_id>", methods=["DELETE"])
+@login_required("admin")
+def delete_examination(exam_id):
+    """Permanently delete one examination, its reviews and its images.
+
+    Intended for mistakes such as the wrong patient or the wrong image. A
+    reason is required and, with what was deleted, is kept in the audit log.
+    The patient entry is removed too once it has no examinations left.
+    """
+    exam, error = _get_exam(exam_id)
+    if error:
+        return error
+    reason = re.sub(r"\s+", " ", str((request.get_json(silent=True) or {}).get("reason", ""))).strip()
+    if not 3 <= len(reason) <= 300:
+        return bad_request("Give a reason for deleting this examination (3 to 300 characters).", "reason")
+
+    patient = exam.patient
+    files = [exam.image_path, exam.model_view_path, exam.overlay_path]
+    detail = {
+        "record_no": patient.record_no,
+        "examined_at": iso(exam.created_at),
+        "predicted_class": exam.predicted_class,
+        "reviews_deleted": len(exam.reviews),
+        "reason": reason,
+    }
+
+    db.session.delete(exam)
+    db.session.flush()
+    patient_removed = Examination.query.filter_by(patient_id=patient.id).first() is None
+    if patient_removed:
+        db.session.delete(patient)
+    detail["patient_removed"] = patient_removed
+    record("examination_deleted", user=g.user, entity="examination", entity_id=exam_id,
+           detail=detail, ip=client_ip())
+    db.session.commit()
+
+    # Files go only after the database change is committed, so a failure can
+    # never leave a record pointing at images that no longer exist.
+    storage.remove(files)
+    return jsonify({"deleted": exam_id, "patient_removed": patient_removed})
+
+
 @exams_bp.route("/examinations/<int:exam_id>/image/<kind>")
 @login_required()
 def examination_image(exam_id, kind):

@@ -82,7 +82,7 @@ for the patient's notes.
 
 ## For administrators
 
-**Admin** has three tabs.
+**Admin** has four tabs.
 
 ### Users
 
@@ -110,6 +110,27 @@ examination keeps a record of which model version produced it.
 Diagnoses entered as *Other* are not used for training, since there is no
 category to learn them as. Adding a new category, such as otomycosis, needs
 enough images and a full retraining from the dataset.
+
+### Records
+
+Shows how many patients, examinations, reviews and stored images exist.
+
+To remove **one examination** recorded in error, for example against the
+wrong record number, open it from History and click **Delete this
+examination**. A reason is required. The examination, its reviews and its
+images are deleted, and so is the patient entry if it has no other
+examinations.
+
+**Clear all records** permanently deletes every patient, examination, review
+and stored image. It is meant for removing test data before the system is
+used for real. Type the confirmation phrase exactly and enter your own
+password to enable it. User accounts, model versions and the audit log are
+kept.
+
+Both cannot be undone, and reviewed cases are what retraining learns from.
+Patient records may also fall under the hospital's retention rules, so do not
+delete real records without approval. Every deletion, with its reason, is
+recorded in the audit log.
 
 ### Audit log
 

@@ -61,6 +61,9 @@ How to use the system day to day is in the **[User Guide](docs/USER_GUIDE.md)**.
 5. An administrator can **retrain** once enough reviews exist. The candidate
    goes live only if it is at least as good as the current model and an
    administrator approves it.
+6. An administrator can **delete** an examination recorded in error, with a
+   reason, or **clear all records**, for example to remove test data before
+   real use. Both are recorded in the audit log.
 
 ## What a result shows
 
@@ -223,7 +226,10 @@ account or changing a role invalidates every open session for that user.
 **Database.** The service connects as a dedicated PostgreSQL user that owns
 only its own database; the superuser password is used once at setup and never
 stored. Reviews are append only, and every sign in, examination, review,
-account change and model approval is recorded in an audit log.
+account change, deletion and model approval is recorded in an audit log.
+Deleting records needs the administrator role; clearing everything also needs
+a typed confirmation phrase and the administrator's password, and the audit
+log itself is never cleared.
 
 **Secrets** live in a `.env` file that is excluded from git. By default the
 service only accepts connections from the computer it runs on. See the Setup
@@ -243,12 +249,13 @@ All endpoints except health and sign in require `Authorization: Bearer <token>`.
 | `GET` | `/api/v1/examinations` | History, filterable by `q` and `status`, paginated. |
 | `GET` | `/api/v1/examinations/<id>` | One examination with its result and reviews. |
 | `GET` | `/api/v1/examinations/<id>/image/<kind>` | `original`, `view` or `overlay` image. |
+| `DELETE` | `/api/v1/examinations/<id>` | Delete one examination with a `reason`. Administrators only. |
 | `POST` | `/api/v1/examinations/<id>/review` | `verdict` of `correct`, `corrected` (with `true_class`) or `other` (with `other_label`). |
 | `GET` | `/api/v1/patients/<record_no>` | Whether a record number exists. |
 | `GET` | `/api/v1/stats` | Performance against the surgeons' reviews. |
 | `GET` | `/api/v1/model` | Model version, threshold, test results, classes. |
 | `GET` | `/api/v1/health` | Service status. |
-| | `/api/v1/admin/...` | Users, model versions, retraining, approval and the audit log. Administrators only. |
+| | `/api/v1/admin/...` | Users, model versions, retraining, approval, records (including clearing all) and the audit log. Administrators only. |
 
 ## Retraining from scratch
 

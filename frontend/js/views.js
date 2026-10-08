@@ -262,6 +262,7 @@
       App.result.renderAttention(r(view, "attention"), exam.images, exam.result.finding.name);
       App.result.renderReview(r(view, "review"), exam);
       setPrintPatient(exam);
+      if (App.state.user.role === "admin") { wireDelete(view, exam); }
     }).catch(function (err) {
       view.textContent = "";
       var main = el("main", "shell");
@@ -271,6 +272,44 @@
     });
   };
   App.views.exam.title = ["Examination", ""];
+
+  /* Administrators can delete an examination recorded in error. */
+  function wireDelete(view, exam) {
+    var area = r(view, "delete-area");
+    var form = r(view, "delete-form");
+    var open = r(view, "delete-open");
+    var error = r(view, "delete-error");
+    area.hidden = false;
+
+    open.addEventListener("click", function () {
+      form.hidden = false;
+      open.hidden = true;
+      form.elements.reason.focus();
+    });
+    r(view, "delete-cancel").addEventListener("click", function () {
+      form.hidden = true;
+      open.hidden = false;
+      App.showError(error, "");
+    });
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var reason = form.elements.reason.value.trim();
+      if (reason.length < 3) {
+        App.showError(error, "Give a reason for deleting this examination.");
+        return;
+      }
+      if (!window.confirm("Permanently delete examination " + exam.id + " for record " +
+          exam.record_no + "? This cannot be undone.")) { return; }
+      var button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      App.request("DELETE", "/examinations/" + exam.id, { json: { reason: reason } })
+        .then(function () {
+          App.toast("Examination " + exam.id + " deleted.");
+          location.hash = "#/history";
+        })
+        .catch(function (err) { App.showError(error, err.message); button.disabled = false; });
+    });
+  }
 
   /* ======================= Dashboard ======================= */
 

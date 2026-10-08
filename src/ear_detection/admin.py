@@ -1,15 +1,21 @@
-"""Administration: user accounts, model versions, retraining and the audit log.
+"""Administration: users, model versions, retraining, records and the audit log.
 
 Every route here requires the admin role.
 """
 
+import os
 import re
+import shutil
 
 from flask import Blueprint, current_app, g, jsonify, request
+from werkzeug.security import check_password_hash
 
-from . import config, reporting, retraining
+from . import config, reporting, retraining, storage
 from .auth import client_ip, hash_password, login_required, password_problem
-from .db import AuditEvent, ModelVersion, TrainingJob, User, as_utc, db, record, utcnow
+from .db import (
+    AuditEvent, Examination, ModelVersion, Patient, Review, TrainingJob, User, as_utc, db,
+    record, utcnow,
+)
 
 admin_bp = Blueprint("admin", __name__, url_prefix=config.API_PREFIX + "/admin")
 
@@ -218,6 +224,70 @@ def reject_model(version_id):
            detail={"version": candidate.version}, ip=client_ip())
     db.session.commit()
     return jsonify({"version": candidate.to_dict()})
+
+
+# ---------------- records ----------------
+
+CLEAR_PHRASE = "DELETE ALL RECORDS"
+IMAGE_FOLDERS = ("images", "derived")
+
+
+def _storage_usage():
+    files = size = 0
+    for folder in IMAGE_FOLDERS:
+        root = storage.absolute(folder)
+        for base, _dirs, names in os.walk(root):
+            for name in names:
+                files += 1
+                size += os.path.getsize(os.path.join(base, name))
+    return files, size
+
+
+@admin_bp.route("/records")
+@login_required("admin")
+def records_summary():
+    files, size = _storage_usage()
+    return jsonify({
+        "patients": Patient.query.count(),
+        "examinations": Examination.query.count(),
+        "reviews": Review.query.count(),
+        "image_files": files,
+        "image_bytes": size,
+        "confirm_phrase": CLEAR_PHRASE,
+    })
+
+
+@admin_bp.route("/records/clear", methods=["POST"])
+@login_required("admin")
+def clear_records():
+    """Permanently delete every patient, examination, review and image.
+
+    Meant for removing test data before the system is used for real. Needs
+    the exact confirmation phrase and the administrator's own password, so an
+    unattended signed in screen is not enough. User accounts, model versions
+    and the audit log are kept; the audit log records the clearing itself.
+    """
+    body = request.get_json(silent=True) or {}
+    if str(body.get("confirm", "")).strip() != CLEAR_PHRASE:
+        return _error('Type "%s" exactly to confirm.' % CLEAR_PHRASE, field="confirm")
+    if not check_password_hash(g.user.password_hash, str(body.get("password", ""))):
+        return _error("Your password is incorrect.", 403, field="password")
+
+    counts = {
+        "patients": Patient.query.count(),
+        "examinations": Examination.query.count(),
+        "reviews": Review.query.count(),
+    }
+    Review.query.delete()
+    Examination.query.delete()
+    Patient.query.delete()
+    record("records_cleared", user=g.user, entity="records", detail=counts, ip=client_ip())
+    db.session.commit()
+
+    # Database first, files second, as for single deletions.
+    for folder in IMAGE_FOLDERS:
+        shutil.rmtree(storage.absolute(folder), ignore_errors=True)
+    return jsonify({"cleared": counts})
 
 
 # ---------------- audit ----------------
