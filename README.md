@@ -73,6 +73,12 @@ ResNet50 and InceptionResNetV2 were both initialised from ImageNet weights via
 `keras.applications` and fine-tuned on the dataset. The training runs are in
 [`notebooks/`](notebooks/).
 
+> **Note on the shipped weights.** `models/my_model_44.h5` is a **MobileNetV2**
+> network (3,576,903 parameters, 224×224×3 input, 7-way softmax output) — not
+> either of the architectures in `notebooks/`. The notebook that produced it is
+> not part of this repository, so the two training notebooks document the
+> approach rather than the exact artefact being served.
+
 ### Results
 
 <p align="center">
@@ -111,9 +117,9 @@ ResNet50 and InceptionResNetV2 were both initialised from ImageNet weights via
 
 ## Requirements
 
-This project targets **Python 3.6** with TensorFlow 1.x, as pinned in
-`runtime.txt` and `requirements.txt`. Those versions will not install on a
-current Python release, so create a Python 3.6 environment:
+This project runs on **Python 3.9 – 3.11** with TensorFlow 2.15, which bundles
+Keras 2.15. That combination keeps the `keras.preprocessing` API the code uses
+and loads the original Keras 2.x weights in `models/` without conversion.
 
 ```bash
 python -m venv .venv
@@ -122,6 +128,10 @@ source .venv/bin/activate     # macOS / Linux
 
 pip install -r requirements.txt
 ```
+
+> On a slow connection, give pip more headroom — the TensorFlow wheel is
+> around 300 MB and the default 15 s socket timeout can abort the install:
+> `pip install -r requirements.txt --timeout 120 --retries 10`
 
 ## Running the Service
 

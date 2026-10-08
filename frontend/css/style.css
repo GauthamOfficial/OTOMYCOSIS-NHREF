@@ -31,6 +31,10 @@
 
 * { box-sizing: border-box; }
 
+/* Keep [hidden] authoritative — several blocks below set an explicit
+   display, which would otherwise override the user-agent rule. */
+[hidden] { display: none !important; }
+
 html { -webkit-text-size-adjust: 100%; }
 
 body {
