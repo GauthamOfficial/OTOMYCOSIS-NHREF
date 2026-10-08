@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ear Disease Detection System</title>
+  <meta name="description" content="Tympanic membrane screening support powered by deep learning — Nawaloka Hospital Research and Education Foundation.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span class="brand-text">
+          <span class="brand-name">Nawaloka Hospital</span>
+          <span class="brand-sub">Research and Education Foundation</span>
+        </span>
+      </div>
+      <span class="header-tag">Ear Disease Detection</span>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <section class="hero">
+      <h1>Tympanic Membrane Screening</h1>
+      <p>
+        Upload an otoscope image of the ear drum. The model classifies it into one of
+        seven conditions and reports how confident it is in that result.
+      </p>
+    </section>
+
+    <section class="panel" aria-labelledby="upload-heading">
+      <h2 id="upload-heading" class="panel-title">Upload an image</h2>
+
+      <div id="dropzone" class="dropzone" tabindex="0" role="button"
+           aria-label="Choose an otoscope image, or drop one here">
+        <svg class="dz-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 16V4m0 0L8 8m4-4 4 4" fill="none" stroke="currentColor"
+                stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        <p class="dz-main">Drop an image here, or <span class="dz-link">browse</span></p>
+        <p class="dz-hint">JPG, PNG or BMP</p>
+        <input type="file" id="file-input" accept="image/jpeg,image/png,image/bmp" hidden>
+      </div>
+
+      <div id="preview" class="preview" hidden>
+        <img id="preview-img" alt="Selected otoscope image">
+        <div class="preview-meta">
+          <p id="preview-name" class="preview-name"></p>
+          <p id="preview-size" class="preview-size"></p>
+          <button type="button" id="clear-btn" class="btn-link">Remove</button>
+        </div>
+      </div>
+
+      <label class="option">
+        <input type="checkbox" id="crop-toggle">
+        <span>Trim the dark otoscope border before analysing</span>
+      </label>
+
+      <div class="actions">
+        <button type="button" id="predict-btn" class="btn btn-primary" disabled>
+          Analyse Image
+        </button>
+      </div>
+    </section>
+
+    <section id="result" class="panel result" hidden aria-live="polite">
+      <h2 class="panel-title">Result</h2>
+      <div class="result-body">
+        <div class="result-label">
+          <span class="result-caption">Predicted condition</span>
+          <strong id="result-value">—</strong>
+        </div>
+        <div class="result-confidence">
+          <span class="result-caption">Confidence</span>
+          <div class="meter" role="img" aria-labelledby="confidence-value">
+            <div id="meter-fill" class="meter-fill"></div>
+          </div>
+          <span id="confidence-value" class="confidence-value">—</span>
+        </div>
+      </div>
+      <p class="disclaimer">
+        This result is a screening aid only. It is not a clinical diagnosis and must be
+        reviewed by a qualified ENT practitioner.
+      </p>
+    </section>
+
+    <section id="error" class="panel panel-error" hidden aria-live="assertive">
+      <p id="error-text"></p>
+    </section>
+
+    <section class="panel" aria-labelledby="classes-heading">
+      <h2 id="classes-heading" class="panel-title">Conditions the model recognises</h2>
+      <ul class="class-list">
+        <li><span class="dot"></span>AOM <em>Acute Otitis Media</em></li>
+        <li><span class="dot"></span>CSOM <em>Chronic Suppurative Otitis Media</em></li>
+        <li><span class="dot"></span>Glue Ear <em>Otitis media with effusion</em></li>
+        <li><span class="dot"></span>Otomycosis <em>Fungal ear infection</em></li>
+        <li><span class="dot"></span>Wax <em>Impacted cerumen</em></li>
+        <li><span class="dot"></span>Normal Ear <em>No abnormality detected</em></li>
+        <li><span class="dot"></span>Others <em>Outside the trained categories</em></li>
+      </ul>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Nawaloka Hospital Research and Education Foundation</p>
+      <p class="footer-sub">Research use only — not a substitute for clinical judgement.</p>
+    </div>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
