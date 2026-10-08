@@ -151,25 +151,6 @@ body {
 
 .titlebar p { margin: 0; font-size: 14px; color: var(--ink-500); }
 
-.titlebar-facts { display: flex; gap: 28px; margin: 0; }
-
-.titlebar-facts div { display: flex; flex-direction: column; gap: 1px; }
-
-.titlebar-facts dt {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--ink-400);
-}
-
-.titlebar-facts dd {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--navy-800);
-  font-variant-numeric: tabular-nums;
-}
 
 /* ============ Workspace grid ============ */
 
@@ -638,7 +619,6 @@ body {
   .masthead-meta { display: none; }
   .titlebar-inner { align-items: flex-start; gap: 18px; }
   .titlebar h1 { font-size: 20px; }
-  .titlebar-facts { gap: 22px; }
   .readout-value { font-size: 23px; }
   .rank-track { display: none; }
   .colophon-inner { flex-direction: column; align-items: flex-start; gap: 3px; }
