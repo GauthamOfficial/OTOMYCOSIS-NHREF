@@ -1,6 +1,6 @@
 """WSGI entry point for the ear disease detection service.
 
-Nawaloka Hospital Research and Education Foundation (NHREF).
+Nawaloka Hospital PLC Research and Education Foundation (NHREF).
 """
 
 import os

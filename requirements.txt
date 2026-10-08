@@ -1,5 +1,5 @@
 # Ear Disease Detection System
-# Nawaloka Hospital Research and Education Foundation
+# Nawaloka Hospital PLC Research and Education Foundation
 #
 # Targets Python 3.9 - 3.11. TensorFlow 2.15 bundles Keras 2.15, which keeps
 # the keras.preprocessing API this project uses and loads the original

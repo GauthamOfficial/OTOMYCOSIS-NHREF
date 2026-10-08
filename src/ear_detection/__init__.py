@@ -1,6 +1,6 @@
 """Ear disease detection from tympanic membrane images.
 
-Nawaloka Hospital Research and Education Foundation (NHREF).
+Nawaloka Hospital PLC Research and Education Foundation (NHREF).
 """
 
 from .api import create_app

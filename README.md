@@ -1,6 +1,6 @@
 # Ear Disease Detection System
 
-**Nawaloka Hospital Research and Education Foundation (NHREF)**
+**Nawaloka Hospital PLC Research and Education Foundation (NHREF)**
 
 A deep learning system that classifies otoscope images of the tympanic membrane
 (ear drum) into seven conditions, intended as a screening aid for settings where
@@ -202,4 +202,4 @@ web: uwsgi uwsgi.ini
 
 ---
 
-Nawaloka Hospital Research and Education Foundation
+Nawaloka Hospital PLC Research and Education Foundation

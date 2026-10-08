@@ -1,5 +1,5 @@
 /* Ear Disease Detection System, front-end controller.
-   Nawaloka Hospital Research and Education Foundation. */
+   Nawaloka Hospital PLC Research and Education Foundation. */
 
 (function () {
   "use strict";
