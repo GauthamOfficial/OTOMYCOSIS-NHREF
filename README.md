@@ -19,7 +19,7 @@ global burden of disease, affecting 1.23 billion people in 2013.
 OM is often misdiagnosed or not diagnosed at all, especially in its early stages.
 It is either under-diagnosed or over-diagnosed depending on factors such as the
 clinician, the presenting symptoms and the otoscope used. Reliable detection
-requires an ENT practitioner, whose availability is limited in remote areas —
+requires an ENT practitioner, whose availability is limited in remote areas,
 which is precisely where the condition goes untreated.
 
 This project applies image classification to ear drum photographs so that a
@@ -74,7 +74,7 @@ ResNet50 and InceptionResNetV2 were both initialised from ImageNet weights via
 [`notebooks/`](notebooks/).
 
 > **Note on the shipped weights.** `models/my_model_44.h5` is a **MobileNetV2**
-> network (3,576,903 parameters, 224×224×3 input, 7-way softmax output) — not
+> network (3,576,903 parameters, 224×224×3 input, 7-way softmax output), not
 > either of the architectures in `notebooks/`. The notebook that produced it is
 > not part of this repository, so the two training notebooks document the
 > approach rather than the exact artefact being served.
@@ -117,7 +117,7 @@ ResNet50 and InceptionResNetV2 were both initialised from ImageNet weights via
 
 ## Requirements
 
-This project runs on **Python 3.9 – 3.11** with TensorFlow 2.15, which bundles
+This project runs on **Python 3.9 to 3.11** with TensorFlow 2.15, which bundles
 Keras 2.15. That combination keeps the `keras.preprocessing` API the code uses
 and loads the original Keras 2.x weights in `models/` without conversion.
 
@@ -129,7 +129,7 @@ source .venv/bin/activate     # macOS / Linux
 pip install -r requirements.txt
 ```
 
-> On a slow connection, give pip more headroom — the TensorFlow wheel is
+> On a slow connection, give pip more headroom. The TensorFlow wheel is
 > around 300 MB and the default 15 s socket timeout can abort the install:
 > `pip install -r requirements.txt --timeout 120 --retries 10`
 
@@ -159,8 +159,20 @@ curl -F "file=@ear.jpg" http://localhost:5000/api/v0.1/inference
 ```
 
 ```json
-{ "prediction": "CSOM", "confidence": 0.6719 }
+{
+  "prediction": "Normal Ear",
+  "confidence": 0.7234,
+  "differential": [
+    { "label": "Normal Ear", "probability": 0.7234 },
+    { "label": "Wax",        "probability": 0.1757 },
+    { "label": "Others",     "probability": 0.0445 }
+  ]
+}
 ```
+
+`differential` carries all seven classes ordered from most to least likely and
+sums to 1.0. `prediction` and `confidence` are the first entry, repeated at the
+top level for convenience.
 
 **`GET /api/v0.1/health`** returns `{"status": "ok"}`.
 

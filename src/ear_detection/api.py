@@ -54,11 +54,18 @@ def create_app():
 
         try:
             model = load_classifier()
-            label, confidence = predict(model, batch)
+            label, confidence, ranked = predict(model, batch)
         finally:
             # The graph is released so the next request can load the model again.
             clear_session()
 
-        return jsonify({"prediction": label, "confidence": round(confidence, 4)})
+        return jsonify({
+            "prediction": label,
+            "confidence": round(confidence, 4),
+            "differential": [
+                {"label": name, "probability": round(value, 4)}
+                for name, value in ranked
+            ],
+        })
 
     return app

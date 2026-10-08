@@ -22,9 +22,16 @@ def clear_session():
 def predict(model, batch):
     """Classify a preprocessed batch.
 
-    Returns the predicted label and the confidence of that prediction.
+    Returns the predicted label, the confidence of that prediction, and the
+    full distribution as a list of ``(label, probability)`` pairs ordered from
+    most to least likely. The distribution is what lets the interface show a
+    differential rather than a single answer.
     """
-    scores = model.predict(batch)
-    index = int(np.argmax(scores))
-    confidence = float(np.amax(scores))
-    return CLASS_LABELS.get(index, "Unknown"), confidence
+    scores = model.predict(batch)[0]
+    ranked = sorted(
+        ((CLASS_LABELS.get(i, "Unknown"), float(p)) for i, p in enumerate(scores)),
+        key=lambda pair: pair[1],
+        reverse=True,
+    )
+    label, confidence = ranked[0]
+    return label, confidence, ranked
