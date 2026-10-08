@@ -1,4 +1,4 @@
-"""Configuration for the ear disease detection service."""
+"""Configuration for the ear condition screening service."""
 
 import json
 import os
@@ -8,98 +8,124 @@ import os
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir))
 
 FRONTEND_DIR = os.path.join(BASE_DIR, "frontend")
-UPLOAD_DIR = os.environ.get("UPLOAD_DIR", os.path.join(BASE_DIR, "uploads"))
 ARTIFACTS_DIR = os.path.join(BASE_DIR, "artifacts")
 
-TRAINED_MODEL = os.path.join(BASE_DIR, "models", "ear_classifier.keras")
-LEGACY_MODEL = os.path.join(BASE_DIR, "models", "my_model_44.h5")
+MODEL_PATH = os.environ.get("MODEL_PATH", os.path.join(BASE_DIR, "models", "ear_classifier.keras"))
 LABELS_FILE = os.path.join(ARTIFACTS_DIR, "labels.json")
+CALIBRATION_FILE = os.path.join(ARTIFACTS_DIR, "calibration.json")
+INPUT_STATS_FILE = os.path.join(ARTIFACTS_DIR, "input_stats.json")
+EVALUATION_FILE = os.path.join(ARTIFACTS_DIR, "evaluation_report.json")
 
-# Input size expected by the network.
-IMAGE_SIZE = (224, 224)
+API_PREFIX = "/api/v1"
 
-# Readable names for the classes produced by scripts/prepare_dataset.py.
-DISPLAY_NAMES = {
-    "acute_otitis_media": "Acute Otitis Media",
-    "cerumen_impaction": "Cerumen Impaction",
-    "chronic_om_active_no_cholesteatoma": "Chronic OM, Active, No Cholesteatoma",
-    "chronic_om_cholesteatoma": "Chronic OM with Cholesteatoma",
-    "chronic_om_inactive": "Chronic OM, Inactive",
-    "chronic_om_suppurative": "Chronic Suppurative OM",
-    "chronic_om_unspecified": "Chronic Otitis Media",
-    "myringosclerosis": "Myringosclerosis",
-    "normal": "Normal Ear",
-    "other_findings": "Other Findings",
-    "otitis_externa": "Otitis Externa",
-    "otitis_media_effusion": "Otitis Media with Effusion",
+# Uploads are read into memory, analysed and discarded. Nothing derived from a
+# patient image is written to disk.
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+MIN_IMAGE_SIDE = 128
+
+NORMAL_CLASS = "normal"
+
+# Readable names and one line descriptions, shown in the interface and in the
+# validation report. Keys are the training class names in artifacts/labels.json.
+CLASS_INFO = {
+    "acute_otitis_media": (
+        "Acute Otitis Media",
+        "Acute middle ear infection; bulging, erythematous tympanic membrane.",
+    ),
+    "cerumen_impaction": (
+        "Cerumen Impaction",
+        "Ear wax occluding the canal or obscuring the tympanic membrane.",
+    ),
+    "chronic_om_active_no_cholesteatoma": (
+        "Chronic OM, Active, No Cholesteatoma",
+        "Perforation with active discharge and no cholesteatoma.",
+    ),
+    "chronic_om_cholesteatoma": (
+        "Chronic OM with Cholesteatoma",
+        "Keratinising squamous epithelium in the middle ear; erosive.",
+    ),
+    "chronic_om_inactive": (
+        "Chronic OM, Inactive",
+        "Dry tympanic membrane perforation without discharge.",
+    ),
+    "chronic_om_suppurative": (
+        "Chronic Suppurative OM",
+        "Persistent perforation with chronic discharge.",
+    ),
+    "chronic_om_unspecified": (
+        "Chronic Otitis Media",
+        "Chronic middle ear disease; subtype not recorded in the source data.",
+    ),
+    "myringosclerosis": (
+        "Myringosclerosis",
+        "Calcified white plaques in the tympanic membrane; includes tympanosclerosis.",
+    ),
+    "normal": (
+        "Normal Ear",
+        "No abnormality detected.",
+    ),
+    "other_findings": (
+        "Other Findings",
+        "Foreign body, pseudomembrane or ventilation tube, pooled for lack of images.",
+    ),
+    "otitis_externa": (
+        "Otitis Externa",
+        "Inflammation of the external ear canal.",
+    ),
+    "otitis_media_effusion": (
+        "Otitis Media with Effusion",
+        "Fluid behind an intact tympanic membrane without acute infection.",
+    ),
 }
 
-# Labels the previous weights were assumed to produce. The notebook that
-# trained them was never committed, so this order was never verifiable. It is
-# kept only so the legacy file still runs, and it is not used once the
-# retrained model is present.
-LEGACY_CLASS_LABELS = {
-    0: "AOM",
-    1: "CSOM",
-    2: "Wax",
-    3: "Glue Ear",
-    4: "Normal Ear",
-    5: "Others",
-    6: "Otomycosis",
-}
-
-
-def _load_label_metadata():
-    """Read the class order recorded at training time.
-
-    The order a model was trained in cannot be inferred from its weights, so
-    it is written to artifacts/labels.json during preparation and read back
-    here. Falling back to the legacy map keeps the old weights usable.
-    """
-    if os.path.isfile(TRAINED_MODEL) and os.path.isfile(LABELS_FILE):
-        with open(LABELS_FILE, encoding="utf-8") as fh:
-            meta = json.load(fh)
-        classes = meta["classes"]
-        return {
-            "model_path": TRAINED_MODEL,
-            "labels": {i: DISPLAY_NAMES.get(name, name) for i, name in enumerate(classes)},
-            "raw_classes": classes,
-            "parent_groups": meta.get("parent_groups", {}),
-            "verified": True,
-        }
-
-    return {
-        "model_path": LEGACY_MODEL,
-        "labels": dict(LEGACY_CLASS_LABELS),
-        "raw_classes": [LEGACY_CLASS_LABELS[i] for i in sorted(LEGACY_CLASS_LABELS)],
-        "parent_groups": {},
-        "verified": False,
-    }
-
-
-_METADATA = _load_label_metadata()
-
-MODEL_PATH = os.environ.get("MODEL_PATH", _METADATA["model_path"])
-CLASS_LABELS = _METADATA["labels"]
-RAW_CLASSES = _METADATA["raw_classes"]
-PARENT_GROUPS = _METADATA["parent_groups"]
-
-# False means the running weights are the legacy ones whose class order was
-# never recorded, so the names attached to predictions are unconfirmed.
-LABELS_VERIFIED = _METADATA["verified"]
-
-# Readable names for the coarse groups, used when the differential is rolled up.
 PARENT_DISPLAY_NAMES = {
-    "chronic_otitis_media": "Chronic Otitis Media (any subtype)",
+    "chronic_otitis_media": "Chronic Otitis Media, any subtype",
 }
 
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp"}
-
-API_PREFIX = "/api/v0.1"
-
-# A softmax vector can peak on a class without the network having made a real
-# decision, so each result is checked on two signals: the gap between the top
-# two probabilities, and entropy as a fraction of its maximum. Failing either
-# marks the result inconclusive rather than presenting it as a finding.
+# A softmax vector can peak on a class without the network having decided
+# anything, so the leading finding is flagged as low confidence when the gap
+# to the runner up is small or the distribution is close to uniform. This
+# affects how the finding is presented, never the referral decision, which
+# has its own threshold below.
 CONFIDENCE_MIN_MARGIN = 0.15
 CONFIDENCE_MAX_ENTROPY_RATIO = 0.80
+
+# Fallbacks used only if scripts/calibrate.py has not been run.
+DEFAULT_TEMPERATURE = 1.0
+DEFAULT_REFERRAL_THRESHOLD = 0.5
+
+
+def _read_json(path, default=None):
+    if not os.path.isfile(path):
+        return default
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def load_runtime_metadata():
+    """Everything the service needs to know about the trained model.
+
+    The class order is read from the file written when the dataset was
+    prepared. It cannot be inferred from the weights, and losing it is what
+    made the project's original model unusable.
+    """
+    labels = _read_json(LABELS_FILE)
+    if labels is None:
+        raise RuntimeError(
+            "artifacts/labels.json is missing. Run scripts/prepare_dataset.py "
+            "and scripts/train.py before starting the service."
+        )
+
+    calibration = _read_json(CALIBRATION_FILE, default={})
+    return {
+        "classes": labels["classes"],
+        "parent_groups": labels.get("parent_groups", {}),
+        "temperature": calibration.get("temperature", DEFAULT_TEMPERATURE),
+        "referral_threshold": calibration.get("referral_threshold", DEFAULT_REFERRAL_THRESHOLD),
+        "use_tta": calibration.get("use_tta", True),
+        "calibrated": bool(calibration),
+        "calibration": calibration,
+        "input_stats": _read_json(INPUT_STATS_FILE, default={}),
+        "evaluation": _read_json(EVALUATION_FILE, default={}),
+    }

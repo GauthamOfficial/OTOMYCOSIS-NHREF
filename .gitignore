@@ -24,3 +24,10 @@ Desktop.ini
 # evaluation reports are small and are kept, since they define the taxonomy
 # and the exact train/val/test split used for a run.
 artifacts/cache/
+artifacts/normalized/
+
+# Held out sample images exported for demonstration. They belong to the third
+# party source datasets and are not redistributed with the code.
+samples/
+
+.pytest_cache/

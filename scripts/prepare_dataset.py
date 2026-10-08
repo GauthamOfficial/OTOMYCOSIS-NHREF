@@ -1,13 +1,24 @@
-"""Build a training manifest from the Dataset folder.
+"""Build the training manifest from the Dataset folder.
 
-Folder names are the source of truth for labels, but three folder pairs name
-the same condition under different spellings and the chronic group mixes a
-parent class with its own children. TAXONOMY below resolves that.
+Three steps, each guarding against a way the evaluation could flatter itself.
 
-The split is made over visual clusters rather than individual files. Large
-runs of near identical frames exist in several folders, and splitting on files
-would put copies of the same ear in train and test, which inflates every
-metric that follows.
+1. Taxonomy. Folder names are the labels, but three folder pairs name the
+   same condition under different spellings and the chronic group mixes a
+   parent class with its children. TAXONOMY resolves both.
+
+2. Field of view normalisation. Every image is passed through
+   ear_detection.imaging.normalize, the function the service uses at
+   inference, and cached. See imaging.py for why.
+
+3. Same ear grouping. One source dataset is built from video, so the same
+   ear appears in long runs of frames. A perceptual hash only catches frames
+   that are nearly identical; as the otoscope moves, frames of the same ear
+   drift past it, and a split made on hash clusters left half of that
+   source's test images with a near twin in training. Images are therefore
+   grouped by the cosine similarity of generic ImageNet features, joined
+   transitively, and whole groups are assigned to one split. At the chosen
+   threshold no group exceeds a tenth of its class, so the grouping does not
+   chain distinct ears together.
 
 Usage:
     python scripts/prepare_dataset.py
@@ -16,25 +27,32 @@ Usage:
 import csv
 import json
 import os
-import random
 import sys
-from collections import defaultdict
+import time
+from collections import Counter, defaultdict
 
 import numpy as np
 from PIL import Image
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-DATASET_DIR = os.path.join(BASE_DIR, "Dataset")
-OUT_DIR = os.path.join(BASE_DIR, "artifacts")
+from common import (
+    ARTIFACTS, BASE_DIR, DATASET_DIR, LABELS, MANIFEST, NORMALIZED_DIR,
+    normalized_path, source_of,
+)
+from ear_detection import imaging
 
 SEED = 1337
 VAL_FRACTION = 0.15
 TEST_FRACTION = 0.15
-HASH_DISTANCE = 4          # bits of a 64 bit dHash, <= this counts as the same shot
-IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 
-# Source folder -> training class.
-# Folders sharing a value are merged because they name the same condition.
+# Cosine similarity of ImageNet MobileNetV2 features at or above which two
+# images of the same class are treated as the same ear. Chosen as the lowest
+# value tested whose largest group stays under 10 percent of every class.
+GROUP_SIMILARITY = 0.93
+
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp", ".tif", ".tiff"}
+
+# Source folder -> training class. Folders sharing a value are merged because
+# they name the same condition.
 TAXONOMY = {
     "Acute otitis media":                                "acute_otitis_media",
     "normal":                                            "normal",
@@ -50,7 +68,7 @@ TAXONOMY = {
     "tympanoskleros":                                    "myringosclerosis",
 
     # chronic group kept as flat leaves; the parent is recovered by summing
-    # these probabilities at inference time (see PARENT_GROUPS)
+    # these probabilities (see PARENT_GROUPS)
     "Chronic_Otitis_Media":                              "chronic_om_unspecified",
     "Chronic Suppurative Otitis Media":                  "chronic_om_suppurative",
     "chronic active otitis media without cholesteatoma": "chronic_om_active_no_cholesteatoma",
@@ -63,7 +81,6 @@ TAXONOMY = {
     "Ear VentilationTube":                               "other_findings",
 }
 
-# Coarse groupings the API can report by summing member probabilities.
 PARENT_GROUPS = {
     "chronic_otitis_media": [
         "chronic_om_unspecified",
@@ -75,38 +92,89 @@ PARENT_GROUPS = {
 }
 
 
-def dhash(path, size=8):
-    """64 bit difference hash, or None if the file will not decode."""
-    try:
-        with Image.open(path) as im:
-            grey = im.convert("L").resize((size + 1, size), Image.BILINEAR)
-            pixels = np.asarray(grey, dtype=np.int16)
-    except Exception:
-        return None
-    return np.packbits((pixels[:, 1:] > pixels[:, :-1]).flatten())
-
-
-def cluster(hashes, max_distance=HASH_DISTANCE):
-    """Group indices whose hashes are within max_distance of each other."""
-    count = len(hashes)
-    assigned = [-1] * count
-    groups = 0
-    for i in range(count):
-        if assigned[i] != -1:
+def collect():
+    entries, unmapped = [], []
+    for folder in sorted(os.listdir(DATASET_DIR)):
+        path = os.path.join(DATASET_DIR, folder)
+        if not os.path.isdir(path):
             continue
-        assigned[i] = groups
-        for j in range(i + 1, count):
-            if assigned[j] == -1 and np.unpackbits(hashes[i] ^ hashes[j]).sum() <= max_distance:
-                assigned[j] = groups
-        groups += 1
-    return assigned, groups
+        label = TAXONOMY.get(folder)
+        if label is None:
+            unmapped.append(folder)
+            continue
+        for name in sorted(os.listdir(path)):
+            if os.path.splitext(name)[1].lower() in IMAGE_EXTS:
+                rel = os.path.relpath(os.path.join(path, name), BASE_DIR).replace("\\", "/")
+                entries.append({"path": rel, "source_folder": folder, "label": label})
+    if unmapped:
+        sys.exit("Folders missing from TAXONOMY: %s" % ", ".join(unmapped))
+    return entries
 
 
-def split_clusters(sizes, rng):
-    """Assign whole clusters to train/val/test, approximating the target ratios.
+def normalise_all(entries):
+    os.makedirs(NORMALIZED_DIR, exist_ok=True)
+    kept, started = [], time.time()
+    for i, entry in enumerate(entries):
+        target = normalized_path(entry["path"])
+        if not os.path.isfile(target):
+            try:
+                array = imaging.normalize(imaging.open_image(os.path.join(BASE_DIR, entry["path"])))
+            except Exception as exc:  # unreadable file: report and skip
+                print("  skipping unreadable %s (%s)" % (entry["path"], exc))
+                continue
+            Image.fromarray(array).save(target)
+        kept.append(entry)
+        if (i + 1) % 1000 == 0:
+            print("  normalised %d / %d  (%.0fs)" % (i + 1, len(entries), time.time() - started), flush=True)
+    return kept
 
-    Clusters are placed largest first into whichever split is furthest below
-    its quota, so one big cluster cannot swamp a small split.
+
+def embed(entries):
+    """L2 normalised ImageNet features of each normalised image."""
+    os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+    from tensorflow import keras
+
+    model = keras.applications.MobileNetV2(
+        include_top=False, weights="imagenet", pooling="avg",
+        input_shape=(imaging.INPUT_SIZE, imaging.INPUT_SIZE, 3),
+    )
+    features = np.zeros((len(entries), model.output_shape[-1]), np.float32)
+    for start in range(0, len(entries), 32):
+        chunk = entries[start:start + 32]
+        batch = np.stack([
+            np.asarray(Image.open(normalized_path(e["path"])).convert("RGB"), np.float32)
+            for e in chunk
+        ])
+        out = model(keras.applications.mobilenet_v2.preprocess_input(batch), training=False)
+        features[start:start + len(chunk)] = out.numpy()
+    features /= np.linalg.norm(features, axis=1, keepdims=True)
+    return features
+
+
+def group(indices, features, threshold):
+    """Connected components of the similarity graph within one class."""
+    sub = features[indices]
+    similar = np.triu(sub @ sub.T >= threshold, 1)
+    parent = list(range(len(indices)))
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for a, b in zip(*np.where(similar)):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+    return [find(i) for i in range(len(indices))]
+
+
+def split_groups(sizes):
+    """Assign whole groups to train, val and test, largest first.
+
+    Each group goes to whichever split is furthest below its quota, so one
+    large group cannot swamp a small split.
     """
     total = sum(sizes.values())
     quota = {
@@ -114,17 +182,11 @@ def split_clusters(sizes, rng):
         "val": total * VAL_FRACTION,
         "test": total * TEST_FRACTION,
     }
-    filled = {"train": 0, "val": 0, "test": 0}
+    filled = {s: 0 for s in quota}
     placement = {}
-
-    order = sorted(sizes.items(), key=lambda kv: (-kv[1], kv[0]))
-    for cluster_id, size in order:
-        # Deficit relative to quota, scaled so the ratios are respected.
-        choice = max(
-            ("train", "val", "test"),
-            key=lambda s: (quota[s] - filled[s]) / max(quota[s], 1e-9),
-        )
-        placement[cluster_id] = choice
+    for gid, size in sorted(sizes.items(), key=lambda kv: (-kv[1], kv[0])):
+        choice = max(quota, key=lambda s: (quota[s] - filled[s]) / quota[s])
+        placement[gid] = choice
         filled[choice] += size
     return placement
 
@@ -133,92 +195,67 @@ def main():
     if not os.path.isdir(DATASET_DIR):
         sys.exit("Dataset folder not found at %s" % DATASET_DIR)
 
-    rng = random.Random(SEED)
+    print("collecting", flush=True)
+    entries = collect()
+    print("normalising %d images" % len(entries), flush=True)
+    entries = normalise_all(entries)
+    print("embedding", flush=True)
+    features = embed(entries)
 
-    # Collect files per training class, after the taxonomy merge.
-    per_class = defaultdict(list)
-    unmapped = []
-    for folder in sorted(os.listdir(DATASET_DIR)):
-        folder_path = os.path.join(DATASET_DIR, folder)
-        if not os.path.isdir(folder_path):
-            continue
-        label = TAXONOMY.get(folder)
-        if label is None:
-            unmapped.append(folder)
-            continue
-        for name in sorted(os.listdir(folder_path)):
-            if os.path.splitext(name)[1].lower() in IMAGE_EXTS:
-                per_class[label].append((folder, os.path.join(folder_path, name)))
+    labels = np.array([e["label"] for e in entries])
+    classes = sorted(set(labels))
 
-    if unmapped:
-        sys.exit("Folders missing from TAXONOMY: %s" % ", ".join(unmapped))
+    print("\n%-38s %6s %7s %7s %6s %6s" % ("class", "files", "groups", "train", "val", "test"))
+    print("-" * 76)
+    for label in classes:
+        idx = np.where(labels == label)[0]
+        roots = group(idx, features, GROUP_SIMILARITY)
+        sizes = Counter(roots)
+        placement = split_groups(sizes)
+        tally = Counter()
+        for i, root in zip(idx, roots):
+            entries[i]["cluster"] = "%s#%d" % (label, root)
+            entries[i]["split"] = placement[root]
+            tally[placement[root]] += 1
+        print("%-38s %6d %7d %7d %6d %6d" % (
+            label, len(idx), len(sizes), tally["train"], tally["val"], tally["test"]))
 
-    rows = []
-    print("%-38s %7s %9s %7s %6s %6s" % ("class", "files", "distinct", "train", "val", "test"))
-    print("-" * 80)
+    # Verify the guarantee the grouping exists to provide.
+    split = np.array([e["split"] for e in entries])
+    worst = 0.0
+    for i in np.where(split == "test")[0]:
+        train_same = np.where((split == "train") & (labels == labels[i]))[0]
+        worst = max(worst, float((features[train_same] @ features[i]).max()))
+    print("-" * 76)
+    print("most similar same class train image to any test image: cosine %.4f"
+          " (must be below %.2f)" % (worst, GROUP_SIMILARITY))
+    if worst >= GROUP_SIMILARITY:
+        sys.exit("grouping failed to separate test from train")
 
-    for label in sorted(per_class):
-        entries = per_class[label]
-        hashes, kept = [], []
-        for folder, path in entries:
-            h = dhash(path)
-            if h is None:
-                continue
-            hashes.append(h)
-            kept.append((folder, path))
-
-        assigned, groups = cluster(hashes)
-
-        sizes = defaultdict(int)
-        for cid in assigned:
-            sizes[cid] += 1
-        placement = split_clusters(sizes, rng)
-
-        tally = {"train": 0, "val": 0, "test": 0}
-        for (folder, path), cid in zip(kept, assigned):
-            split = placement[cid]
-            tally[split] += 1
-            rows.append({
-                "path": os.path.relpath(path, BASE_DIR).replace("\\", "/"),
-                "source_folder": folder,
-                "label": label,
-                "cluster": "%s#%d" % (label, cid),
-                "split": split,
-            })
-
-        print("%-38s %7d %9d %7d %6d %6d" % (
-            label, len(kept), groups, tally["train"], tally["val"], tally["test"]))
-
-    classes = sorted(per_class)
-    os.makedirs(OUT_DIR, exist_ok=True)
-
-    manifest = os.path.join(OUT_DIR, "manifest.csv")
-    with open(manifest, "w", newline="", encoding="utf-8") as fh:
-        writer = csv.DictWriter(fh, fieldnames=["path", "source_folder", "label", "cluster", "split"])
+    os.makedirs(ARTIFACTS, exist_ok=True)
+    with open(MANIFEST, "w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=["path", "source_folder", "source", "label", "cluster", "split"])
         writer.writeheader()
-        writer.writerows(rows)
+        for e in entries:
+            writer.writerow({**e, "source": source_of(e["path"])})
 
-    labels_path = os.path.join(OUT_DIR, "labels.json")
-    with open(labels_path, "w", encoding="utf-8") as fh:
+    with open(LABELS, "w", encoding="utf-8") as fh:
         json.dump({
             "classes": classes,
             "class_to_index": {c: i for i, c in enumerate(classes)},
             "parent_groups": PARENT_GROUPS,
             "taxonomy": TAXONOMY,
             "seed": SEED,
-            "hash_distance": HASH_DISTANCE,
+            "grouping": {
+                "method": "connected components of ImageNet MobileNetV2 feature cosine similarity",
+                "threshold": GROUP_SIMILARITY,
+                "max_test_to_train_similarity": worst,
+            },
         }, fh, indent=2)
 
-    totals = defaultdict(int)
-    for row in rows:
-        totals[row["split"]] += 1
-    print("-" * 80)
-    print("%-38s %7d %9s %7d %6d %6d" % (
-        "TOTAL", len(rows), "", totals["train"], totals["val"], totals["test"]))
-    print()
-    print("classes  :", len(classes))
-    print("manifest :", manifest)
-    print("labels   :", labels_path)
+    print("\nsplits:", dict(Counter(split)))
+    print("manifest:", MANIFEST)
+    print("labels:  ", LABELS)
 
 
 if __name__ == "__main__":

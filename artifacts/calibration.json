@@ -1,0 +1,8 @@
+{
+  "temperature": 1.2,
+  "referral_threshold": 0.23200857639312744,
+  "target_sensitivity": 0.97,
+  "use_tta": true,
+  "fitted_on": "validation split",
+  "generated_at": "2026-10-08 17:43:10"
+}

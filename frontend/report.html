@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Validation Report</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="masthead">
+  <div class="shell masthead-inner">
+    <div class="identity">
+      <span class="identity-rule" aria-hidden="true"></span>
+      <span class="identity-text">
+        <span class="identity-name">Nawaloka Hospital PLC</span>
+        <span class="identity-unit">Research and Education Foundation</span>
+      </span>
+    </div>
+    <nav class="masthead-meta">
+      <a class="textlink" href="./">Back to screening</a>
+    </nav>
+  </div>
+</header>
+<main class="shell report">
+<h1>Validation Report</h1>
+<p>Ear condition screening from otoscope images. Nawaloka Hospital Research and Education Foundation (NHREF).</p>
+<p>Generated 2026-10-08 17:43:10 by <code>scripts/calibrate.py</code> from the model in <code>models/</code>. Every figure below was measured, none was written by hand. Regenerate this file after any retraining.</p>
+<h2>Summary</h2>
+<table><thead><tr><th>Measure</th><th>Result</th><th>95% CI</th></tr></thead><tbody><tr><td>Referral sensitivity (abnormal ears referred)</td><td><strong>97.0%</strong></td><td>95.1 to 98.2%</td></tr><tr><td>Referral specificity (normal ears not referred)</td><td><strong>75.6%</strong></td><td>69.4 to 80.8%</td></tr><tr><td>AUROC, abnormal vs normal</td><td>0.974</td><td></td></tr><tr><td>12 class macro F1</td><td>0.686</td><td></td></tr><tr><td>12 class balanced accuracy</td><td>68.3%</td><td></td></tr><tr><td>Coarse accuracy, chronic subtypes merged</td><td>86.2%</td><td></td></tr></tbody></table>
+<p>Test split: 718 images never used for training, model selection or calibration. Out of 501 abnormal test ears, 15 were not referred.</p>
+<h2>Intended use</h2>
+<p>A screening aid for deciding whether an otoscope image warrants review by an ENT specialist. It is designed to err toward referral: when the model cannot confidently call an ear normal, it recommends referral.</p>
+<p>It is <strong>not</strong> a diagnostic device. It has not been prospectively validated, has not been evaluated on images from the deploying clinic's own equipment, and must not be used to withhold care. Every output requires review by a qualified clinician.</p>
+<h2>How the referral decision works</h2>
+<p>The model outputs a probability for each of 12 conditions. The probability of an abnormal ear is one minus the probability of <code>normal</code>. The ear is referred when that exceeds a threshold of <strong>0.2320</strong>, chosen on the validation split to reach a target sensitivity of 97.0%, then frozen before the test split was scored.</p>
+<p>Other operating points, threshold chosen on validation, measured on test:</p>
+<table><thead><tr><th>Target sensitivity</th><th>Threshold</th><th>Test sensitivity</th><th>Test specificity</th></tr></thead><tbody><tr><td>90.0%</td><td>0.4849</td><td>90.0%</td><td>87.1%</td></tr><tr><td>93.0%</td><td>0.3812</td><td>93.4%</td><td>83.4%</td></tr><tr><td>95.0%</td><td>0.2857</td><td>95.0%</td><td>78.3%</td></tr><tr><td>97.0%</td><td>0.2320</td><td>97.0%</td><td>75.6%</td></tr><tr><td>99.0%</td><td>0.1891</td><td>99.0%</td><td>72.8%</td></tr></tbody></table>
+<p>Abnormal test ears that were <strong>not</strong> referred at the chosen threshold:</p>
+<table><thead><tr><th>Condition</th><th>Missed</th></tr></thead><tbody><tr><td>Myringosclerosis</td><td>11</td></tr><tr><td>Acute Otitis Media</td><td>2</td></tr><tr><td>Cerumen Impaction</td><td>1</td></tr><tr><td>Other Findings</td><td>1</td></tr></tbody></table>
+<h2>Per condition performance</h2>
+<p>Recall is the fraction of ears with that condition the model named correctly. Classes with a small test support have wide intervals; read them accordingly.</p>
+<table><thead><tr><th>Condition</th><th>Test images</th><th>Precision</th><th>Recall</th><th>Recall 95% CI</th><th>F1</th></tr></thead><tbody><tr><td>Acute Otitis Media</td><td>123</td><td>0.836</td><td>0.870</td><td>79.9 to 91.8%</td><td>0.853</td></tr><tr><td>Cerumen Impaction</td><td>112</td><td>0.982</td><td>0.955</td><td>90.0 to 98.1%</td><td>0.968</td></tr><tr><td>Chronic OM, Active, No Cholesteatoma</td><td>13</td><td>0.667</td><td>0.923</td><td>66.7 to 98.6%</td><td>0.774</td></tr><tr><td>Chronic OM with Cholesteatoma</td><td>9</td><td>0.700</td><td>0.778</td><td>45.3 to 93.7%</td><td>0.737</td></tr><tr><td>Chronic OM, Inactive</td><td>16</td><td>0.818</td><td>0.562</td><td>33.2 to 76.9%</td><td>0.667</td></tr><tr><td>Chronic Suppurative OM</td><td>10</td><td>0.400</td><td>0.200</td><td>5.7 to 51.0%</td><td>0.267</td></tr><tr><td>Chronic Otitis Media</td><td>91</td><td>1.000</td><td>1.000</td><td>95.9 to 100.0%</td><td>1.000</td></tr><tr><td>Myringosclerosis</td><td>95</td><td>1.000</td><td>0.632</td><td>53.1 to 72.2%</td><td>0.774</td></tr><tr><td>Normal Ear</td><td>217</td><td>0.774</td><td>0.899</td><td>85.1 to 93.2%</td><td>0.832</td></tr><tr><td>Other Findings</td><td>5</td><td>0.400</td><td>0.400</td><td>11.8 to 76.9%</td><td>0.400</td></tr><tr><td>Otitis Externa</td><td>6</td><td>0.500</td><td>0.167</td><td>3.0 to 56.4%</td><td>0.250</td></tr><tr><td>Otitis Media with Effusion</td><td>21</td><td>0.630</td><td>0.810</td><td>60.0 to 92.3%</td><td>0.708</td></tr></tbody></table>
+<h2>Confusion matrix</h2>
+<p>Rows are the true condition, columns the prediction, in this order:</p>
+<ol><li>Acute Otitis Media</li><li>Cerumen Impaction</li><li>Chronic OM, Active, No Cholesteatoma</li><li>Chronic OM with Cholesteatoma</li><li>Chronic OM, Inactive</li><li>Chronic Suppurative OM</li><li>Chronic Otitis Media</li><li>Myringosclerosis</li><li>Normal Ear</li><li>Other Findings</li><li>Otitis Externa</li><li>Otitis Media with Effusion</li></ol>
+<pre><code>          0    1    2    3    4    5    6    7    8    9   10   11
+   0    107    .    .    2    .    1    .    .   12    .    .    1
+   1      2  107    .    .    .    .    .    .    3    .    .    .
+   2      .    .   12    .    1    .    .    .    .    .    .    .
+   3      1    .    .    7    1    .    .    .    .    .    .    .
+   4      .    .    5    1    9    .    .    .    .    .    .    1
+   5      .    .    1    .    .    2    .    .    5    2    .    .
+   6      .    .    .    .    .    .   91    .    .    .    .    .
+   7      .    .    .    .    .    1    .   60   33    1    .    .
+   8     13    1    .    .    .    .    .    .  195    .    .    8
+   9      .    .    .    .    .    1    .    .    1    2    1    .
+  10      2    1    .    .    .    .    .    .    2    .    1    .
+  11      3    .    .    .    .    .    .    .    1    .    .   17</code></pre>
+<h2>Calibration</h2>
+<p>Probabilities are temperature scaled (T = 1.20, fitted on validation) so that a stated confidence corresponds to an observed frequency.</p>
+<table><thead><tr><th></th><th>Before</th><th>After</th></tr></thead><tbody><tr><td>Expected calibration error, test</td><td>0.050</td><td>0.043</td></tr><tr><td>Negative log likelihood, test</td><td>0.391</td><td>0.380</td></tr></tbody></table>
+<p>When the two most likely conditions are close, the finding is marked low confidence. That applied to 4.0% of test images. Accuracy was 87.2% on the confident ones and 31.0% on the flagged ones, so the flag separates reliable findings from unreliable ones.</p>
+<h2>Dataset and leakage controls</h2>
+<p>4,763 images in 16 source folders, drawn from three public datasets, merged into 12 classes. Two controls matter for reading the numbers above:</p>
+<ol><li><strong>Same ear grouping.</strong> One source dataset is built from video, so the same ear appears in long runs of frames. Images were grouped by the cosine similarity of generic ImageNet features (0.93 or above, joined transitively) and whole groups assigned to a single split. No test image has a training image of the same class at or above that similarity. An earlier split grouped by perceptual hash only; it left half of that source's test images with a near twin in training and inflated its scores. The figures in this report use the corrected split.</li><li><strong>Field of view normalisation.</strong> The three source datasets frame the ear differently, and 8 of the 12 classes come from a single source. Without correction the network can identify the dataset instead of the ear. Every image is cropped to its illuminated field and masked to one fixed circle, at training and at inference, which removes the framing cue.</li></ol>
+<p>Recall by source, for conditions present in more than one source. Similar figures across sources indicate the model is reading the ear rather than the dataset:</p>
+<table><thead><tr><th>Condition</th><th>Source A</th><th>Source B</th><th>Source C</th></tr></thead><tbody><tr><td>Acute Otitis Media</td><td>85/89 (95.5%)</td><td>9/18 (50.0%)</td><td>13/16 (81.2%)</td></tr><tr><td>Cerumen Impaction</td><td>90/90 (100.0%)</td><td>17/22 (77.3%)</td><td></td></tr><tr><td>Myringosclerosis</td><td>58/91 (63.7%)</td><td>2/4 (50.0%)</td><td></td></tr><tr><td>Normal Ear</td><td>88/88 (100.0%)</td><td>67/82 (81.7%)</td><td>40/47 (85.1%)</td></tr></tbody></table>
+<h2>Known limitations</h2>
+<ul><li><strong>Perfect scores to distrust.</strong> Chronic Otitis Media scored perfectly on the test split. Each comes from a single source dataset, so perfection more likely reflects that source's acquisition style than clinical skill. Do not quote these figures as diagnostic performance.</li><li><strong>Performance depends on image source.</strong> Where a condition appears in several sources, recall is highest on source A, the largest. Results on sources B and C in the table above are the better guide to performance on unfamiliar equipment.</li><li><strong>Single source classes.</strong> Eight classes come from one source dataset each. Field of view normalisation removes the framing cue, but differences in camera, compression and image quality remain, so scores for those classes may still be optimistic. A prospective test on local equipment is the only way to confirm them.</li><li><strong>Small classes.</strong> Other Findings, Otitis Externa and the cholesteatoma and suppurative subtypes have few test images. Their intervals above are wide.</li><li><strong>Pooled class.</strong> Other Findings combines foreign bodies, pseudomembranes and ventilation tubes, which had too few images to learn separately.</li><li><strong>Otomycosis is not a class.</strong> The dataset contains no otomycosis folder, so fungal infection cannot be recognised as such.</li><li><strong>Chronic subtypes overlap.</strong> Chronic Otitis Media (unspecified) is a parent of the other chronic labels in the source data. The coarse accuracy above merges them; subtype calls should be read with that in mind.</li><li><strong>Single image.</strong> Clinical assessment uses history, both ears and often audiometry. This system sees one image.</li></ul>
+</main>
+</body>
+</html>

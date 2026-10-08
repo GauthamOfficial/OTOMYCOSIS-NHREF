@@ -21,7 +21,7 @@
     <nav class="masthead-meta">
       <span class="meta-item">Ear Disease Detection</span>
       <span class="meta-divider" aria-hidden="true"></span>
-      <span class="meta-item meta-muted">Research Build</span>
+      <span class="meta-item meta-muted" id="build-tag">Research Build</span>
     </nav>
   </div>
 </header>
@@ -30,68 +30,95 @@
   <div class="shell titlebar-inner">
     <div>
       <h1>Tympanic Membrane Screening</h1>
-      <p>Classify an otoscope image across seven documented conditions.</p>
+      <p>Screen an otoscope image for referral and review the model's reasoning across twelve conditions.</p>
     </div>
   </div>
 </div>
 
+<!-- Printed header, shown only on paper -->
+<div class="print-header" aria-hidden="true">
+  <strong>Nawaloka Hospital PLC, Research and Education Foundation</strong>
+  <span>Ear Disease Detection System, screening result</span>
+  <span id="print-stamp"></span>
+</div>
+
 <main class="shell workspace">
 
-  <!-- ---------- Input column ---------- -->
-  <section class="card" aria-labelledby="src-h">
-    <div class="card-head">
-      <h2 id="src-h">Image Source</h2>
-      <span class="step">Step 1</span>
-    </div>
+  <!-- ================= Left column ================= -->
+  <div class="column">
 
-    <div class="card-body">
-      <div id="dropzone" class="dropzone" tabindex="0" role="button"
-           aria-label="Select an otoscope image, or drop a file here">
-        <div class="dz-frame" aria-hidden="true">
-          <svg viewBox="0 0 32 32" class="dz-glyph">
-            <rect x="4.5" y="7.5" width="23" height="17" rx="1.5"
-                  fill="none" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M4.5 19.5l6-5 5.5 4.5 4.5-3.5 7 6" fill="none"
-                  stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-            <circle cx="20.5" cy="12.5" r="1.8" fill="currentColor"/>
-          </svg>
+    <section class="card no-print" aria-labelledby="src-h">
+      <div class="card-head">
+        <h2 id="src-h">Image</h2>
+        <span class="step">Step 1</span>
+      </div>
+      <div class="card-body">
+        <div id="dropzone" class="dropzone" tabindex="0" role="button"
+             aria-label="Select an otoscope image, or drop a file here">
+          <div class="dz-frame" aria-hidden="true">
+            <svg viewBox="0 0 32 32" class="dz-glyph">
+              <rect x="4.5" y="7.5" width="23" height="17" rx="1.5"
+                    fill="none" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M4.5 19.5l6-5 5.5 4.5 4.5-3.5 7 6" fill="none"
+                    stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              <circle cx="20.5" cy="12.5" r="1.8" fill="currentColor"/>
+            </svg>
+          </div>
+          <p class="dz-lead">Select an image<span class="dz-or"> or drop it here</span></p>
+          <p class="dz-note">JPG, PNG, BMP, TIFF or WebP, up to 15 MB</p>
+          <input type="file" id="file-input"
+                 accept="image/jpeg,image/png,image/bmp,image/tiff,image/webp" hidden>
         </div>
-        <p class="dz-lead">Select an image<span class="dz-or"> or drop it here</span></p>
-        <p class="dz-note">JPG, PNG or BMP, up to 10 MB</p>
-        <input type="file" id="file-input" accept="image/jpeg,image/png,image/bmp" hidden>
+
+        <figure id="preview" class="specimen" hidden>
+          <img id="preview-img" alt="Selected otoscope image">
+          <figcaption class="specimen-meta">
+            <span id="preview-name" class="specimen-name"></span>
+            <span id="preview-size" class="specimen-size"></span>
+            <button type="button" id="clear-btn" class="textbtn">Replace</button>
+          </figcaption>
+        </figure>
+
+        <button type="button" id="predict-btn" class="action" disabled>
+          <span class="action-text">Run Analysis</span>
+        </button>
+
+        <p class="privacy-note">
+          Images are analysed in memory and are not stored.
+        </p>
       </div>
+    </section>
 
-      <figure id="preview" class="specimen" hidden>
-        <img id="preview-img" alt="Selected otoscope image">
-        <figcaption class="specimen-meta">
-          <span id="preview-name" class="specimen-name"></span>
-          <span id="preview-size" class="specimen-size"></span>
-          <button type="button" id="clear-btn" class="textbtn">Replace</button>
-        </figcaption>
-      </figure>
-
-      <div class="control">
-        <label class="switch">
-          <input type="checkbox" id="crop-toggle">
-          <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
-          <span class="switch-label">
-            Trim otoscope border
-            <small>Crops the dark speculum ring before analysis</small>
-          </span>
-        </label>
+    <section id="attention" class="card" hidden aria-labelledby="att-h">
+      <div class="card-head">
+        <h2 id="att-h">Model Attention</h2>
       </div>
+      <div class="card-body">
+        <div class="attention-grid">
+          <figure class="attention-fig">
+            <img id="model-view" alt="Image as presented to the model">
+            <figcaption>As presented to the model</figcaption>
+          </figure>
+          <figure class="attention-fig">
+            <img id="model-overlay" alt="Regions supporting the finding">
+            <figcaption>Regions supporting <span id="overlay-class"></span></figcaption>
+          </figure>
+        </div>
+        <p class="attention-note">
+          Tinted areas contributed most to the finding. Attention on the tympanic
+          membrane or canal is expected; attention concentrated on glare, the
+          image edge or debris unrelated to the finding is a reason to distrust it.
+        </p>
+      </div>
+    </section>
 
-      <button type="button" id="predict-btn" class="action" disabled>
-        <span class="action-text">Run Analysis</span>
-      </button>
-    </div>
-  </section>
+  </div>
 
-  <!-- ---------- Output column ---------- -->
-  <section class="card" aria-labelledby="out-h">
+  <!-- ================= Right column ================= -->
+  <section class="card assessment-card" aria-labelledby="out-h">
     <div class="card-head">
       <h2 id="out-h">Assessment</h2>
-      <span class="step">Step 2</span>
+      <span class="step no-print">Step 2</span>
     </div>
 
     <div class="card-body">
@@ -103,63 +130,139 @@
 
       <div id="busy" class="placeholder" hidden>
         <p class="busy-line"><span class="spinner" aria-hidden="true"></span>Analysing image</p>
-        <p class="placeholder-note">Loading the model and classifying.</p>
+        <p class="placeholder-note">Normalising the field of view and evaluating the image.</p>
       </div>
 
-      <div id="error" class="notice" hidden role="alert">
+      <div id="error" class="notice notice-error" hidden role="alert">
         <strong>Analysis failed</strong>
         <span id="error-text"></span>
       </div>
 
-      <div id="result" class="readout" hidden aria-live="polite">
-        <p class="readout-caption">Primary finding</p>
-        <p class="readout-value" id="result-value"></p>
+      <div id="result" hidden aria-live="polite">
 
-        <div class="readout-score">
-          <div class="scorebar"><span id="meter-fill" class="scorebar-fill"></span></div>
-          <span class="scorebar-figure" id="confidence-value"></span>
+        <!-- Referral decision -->
+        <div id="referral" class="referral">
+          <div class="referral-head">
+            <span class="referral-icon" aria-hidden="true"></span>
+            <div>
+              <p class="referral-caption">Screening recommendation</p>
+              <p class="referral-value" id="referral-value"></p>
+            </div>
+          </div>
+          <p class="referral-explain" id="referral-explain"></p>
+
+          <div class="gauge" role="img" id="gauge"
+               aria-label="Probability of an abnormal ear against the referral threshold">
+            <div class="gauge-track">
+              <span class="gauge-fill" id="gauge-fill"></span>
+              <span class="gauge-mark" id="gauge-mark"></span>
+            </div>
+            <div class="gauge-scale">
+              <span>Probability of abnormality <strong id="gauge-value"></strong></span>
+              <span>Referral threshold <strong id="gauge-threshold"></strong></span>
+            </div>
+          </div>
         </div>
 
-        <p class="readout-caption readout-caption-sep">Differential</p>
+        <div id="quality" class="notice notice-warn" hidden>
+          <strong>Image quality</strong>
+          <ul id="quality-list"></ul>
+        </div>
+
+        <!-- Leading finding -->
+        <div class="finding">
+          <p class="section-caption">Most likely finding</p>
+          <div class="finding-row">
+            <p class="finding-value" id="finding-value"></p>
+            <span class="tag tag-muted" id="finding-flag" hidden>Low confidence</span>
+          </div>
+          <p class="finding-desc" id="finding-desc"></p>
+          <div class="readout-score">
+            <div class="scorebar"><span id="finding-fill" class="scorebar-fill"></span></div>
+            <span class="scorebar-figure" id="finding-prob"></span>
+          </div>
+          <p class="finding-note" id="finding-note" hidden></p>
+        </div>
+
+        <div id="groups" class="group-line" hidden></div>
+
+        <!-- Differential -->
+        <p class="section-caption section-sep">Differential</p>
         <table class="ranking">
-          <caption class="sr-only">Predicted probability for each condition</caption>
+          <caption class="sr-only">Calibrated probability for each condition</caption>
           <tbody id="ranking-body"></tbody>
         </table>
+        <button type="button" id="ranking-toggle" class="textbtn ranking-toggle no-print">
+          Show all twelve conditions
+        </button>
 
         <p class="advisory">
           Screening aid only. Not a clinical diagnosis. Findings require review by a
           qualified ENT practitioner before any treatment decision.
         </p>
+
+        <div class="result-actions no-print">
+          <button type="button" id="print-btn" class="secondary">Print result</button>
+          <span class="result-meta" id="result-meta"></span>
+        </div>
       </div>
 
     </div>
   </section>
 
-  <!-- ---------- Reference ---------- -->
-  <section class="card card-wide" aria-labelledby="ref-h">
+  <!-- ================= Validation ================= -->
+  <section class="card card-wide no-print" id="validation" hidden aria-labelledby="val-h">
+    <div class="card-head">
+      <h2 id="val-h">Validation</h2>
+      <a class="textlink" href="report.html" target="_blank" rel="noopener">Full validation report</a>
+    </div>
+    <div class="card-body">
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label">Sensitivity</span>
+          <span class="stat-value" id="v-sens"></span>
+          <span class="stat-ci" id="v-sens-ci"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Specificity</span>
+          <span class="stat-value" id="v-spec"></span>
+          <span class="stat-ci" id="v-spec-ci"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">AUROC</span>
+          <span class="stat-value" id="v-auc"></span>
+          <span class="stat-ci">abnormal vs normal</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Held out test images</span>
+          <span class="stat-value" id="v-n"></span>
+          <span class="stat-ci">never used in training</span>
+        </div>
+      </div>
+      <p class="stats-note">
+        Measured on a held out split grouped so that no ear appears in both training
+        and test. Retrospective data from public datasets; not yet validated on
+        this clinic's equipment.
+      </p>
+    </div>
+  </section>
+
+  <section class="card card-wide no-print" aria-labelledby="ref-h">
     <div class="card-head">
       <h2 id="ref-h">Classification Reference</h2>
     </div>
     <div class="card-body">
       <table class="reference">
-        <tbody>
-          <tr><th scope="row">AOM</th><td>Acute Otitis Media</td></tr>
-          <tr><th scope="row">CSOM</th><td>Chronic Suppurative Otitis Media</td></tr>
-          <tr><th scope="row">Glue Ear</th><td>Otitis media with effusion</td></tr>
-          <tr><th scope="row">Otomycosis</th><td>Fungal infection of the ear canal</td></tr>
-          <tr><th scope="row">Wax</th><td>Impacted cerumen</td></tr>
-          <tr><th scope="row">Normal Ear</th><td>No abnormality detected</td></tr>
-          <tr><th scope="row">Others</th><td>Outside the trained categories</td></tr>
-        </tbody>
+        <tbody id="reference-body"></tbody>
       </table>
     </div>
   </section>
 
 </main>
 
-<footer class="colophon">
+<footer class="colophon no-print">
   <div class="shell colophon-inner">
-    <span>Nawaloka Hospital PLC Research and Education Foundation</span>
+    <span>Nawaloka Hospital PLC, Research and Education Foundation</span>
     <span class="colophon-note">Research use only. Not a substitute for clinical judgement.</span>
   </div>
 </footer>

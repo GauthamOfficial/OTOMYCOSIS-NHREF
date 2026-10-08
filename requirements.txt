@@ -1,20 +1,20 @@
-# Ear Disease Detection System
-# Nawaloka Hospital PLC Research and Education Foundation
+# Ear Condition Screening
+# Nawaloka Hospital Research and Education Foundation
 #
-# Targets Python 3.9 - 3.11. TensorFlow 2.15 bundles Keras 2.15, which keeps
-# the keras.preprocessing API this project uses and loads the original
-# Keras 2.x model weights in models/.
+# Requires Python 3.9 to 3.11. TensorFlow 2.15 is the last release that
+# bundles Keras 2, which the saved model in models/ was written with.
 
 tensorflow==2.15.1
 numpy<2
-h5py==3.16.0
+h5py>=3.10
 
 Flask==3.1.3
 Flask-Cors==6.0.5
 Werkzeug==3.1.3
+waitress==3.0.2
 
-Pillow==12.3.0
-opencv-python==4.11.0.86
+Pillow>=10.0
 
-# Production WSGI server (see Procfile / uwsgi.ini)
+# Production WSGI server on Linux (see Procfile and uwsgi.ini).
+# On Windows, app.py serves with waitress instead.
 uWSGI==2.0.32; sys_platform != "win32"

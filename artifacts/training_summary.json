@@ -13,40 +13,128 @@
     "otitis_externa",
     "otitis_media_effusion"
   ],
-  "best_val_macro_f1": 0.6594863312864706,
-  "macro_f1_history": [
-    0.3276716313841657,
-    0.3593689348349646,
-    0.4593066495175025,
-    0.5261217221944522,
-    0.3993048188788451,
-    0.5503973122264917,
-    0.6131379990202457,
-    0.5427010401332699,
-    0.6517380446930104,
-    0.614261388744371,
-    0.5580657123686299,
-    0.6096069017004965,
-    0.5383925151493757,
-    0.6012444642395931,
-    0.5746689336560702,
-    0.5931944501168896,
-    0.6044772734076705,
-    0.6305249117554491,
-    0.6197938864409771,
-    0.6594863312864706,
-    0.6097565059611496,
-    0.6342939951966202,
-    0.6160927132071815,
-    0.6374107658319804,
-    0.6068799472171261,
-    0.6499910986394422
+  "backbone": "MobileNetV2 (ImageNet)",
+  "unfrozen_from": "block_9_expand",
+  "best_epoch": 26,
+  "best_val_macro_f1": 0.716462880260285,
+  "history": [
+    {
+      "macro_f1": 0.5746742870984316,
+      "referral_sensitivity": 0.8804780876494024
+    },
+    {
+      "macro_f1": 0.5268602658049016,
+      "referral_sensitivity": 0.954183266932271
+    },
+    {
+      "macro_f1": 0.5509838808016817,
+      "referral_sensitivity": 0.9641434262948207
+    },
+    {
+      "macro_f1": 0.6370714050772239,
+      "referral_sensitivity": 0.9282868525896414
+    },
+    {
+      "macro_f1": 0.562903300566986,
+      "referral_sensitivity": 0.9601593625498008
+    },
+    {
+      "macro_f1": 0.542871405400203,
+      "referral_sensitivity": 0.9342629482071713
+    },
+    {
+      "macro_f1": 0.6198533696764806,
+      "referral_sensitivity": 0.9023904382470119
+    },
+    {
+      "macro_f1": 0.6395180003823401,
+      "referral_sensitivity": 0.9641434262948207
+    },
+    {
+      "macro_f1": 0.6671553791109845,
+      "referral_sensitivity": 0.9721115537848606
+    },
+    {
+      "macro_f1": 0.6177316873688058,
+      "referral_sensitivity": 0.9701195219123506
+    },
+    {
+      "macro_f1": 0.5452774319188826,
+      "referral_sensitivity": 0.8127490039840638
+    },
+    {
+      "macro_f1": 0.623086195264645,
+      "referral_sensitivity": 0.898406374501992
+    },
+    {
+      "macro_f1": 0.6207187517186095,
+      "referral_sensitivity": 0.9262948207171314
+    },
+    {
+      "macro_f1": 0.6213611995240583,
+      "referral_sensitivity": 0.9362549800796812
+    },
+    {
+      "macro_f1": 0.6036944105666285,
+      "referral_sensitivity": 0.9462151394422311
+    },
+    {
+      "macro_f1": 0.6353082241432354,
+      "referral_sensitivity": 0.9043824701195219
+    },
+    {
+      "macro_f1": 0.6278154790162532,
+      "referral_sensitivity": 0.9402390438247012
+    },
+    {
+      "macro_f1": 0.6017928325261959,
+      "referral_sensitivity": 0.9561752988047809
+    },
+    {
+      "macro_f1": 0.7137152046350406,
+      "referral_sensitivity": 0.9462151394422311
+    },
+    {
+      "macro_f1": 0.6840744125428193,
+      "referral_sensitivity": 0.9103585657370518
+    },
+    {
+      "macro_f1": 0.6481451828383084,
+      "referral_sensitivity": 0.9462151394422311
+    },
+    {
+      "macro_f1": 0.6852675606310595,
+      "referral_sensitivity": 0.9103585657370518
+    },
+    {
+      "macro_f1": 0.707789450749727,
+      "referral_sensitivity": 0.8306772908366534
+    },
+    {
+      "macro_f1": 0.7055778733054202,
+      "referral_sensitivity": 0.900398406374502
+    },
+    {
+      "macro_f1": 0.6848306328480378,
+      "referral_sensitivity": 0.8904382470119522
+    },
+    {
+      "macro_f1": 0.716462880260285,
+      "referral_sensitivity": 0.896414342629482
+    },
+    {
+      "macro_f1": 0.7116428605040414,
+      "referral_sensitivity": 0.8924302788844621
+    },
+    {
+      "macro_f1": 0.7119686742935843,
+      "referral_sensitivity": 0.898406374501992
+    }
   ],
   "train_images": 3326,
   "val_images": 719,
-  "image_size": [
-    224,
-    224
-  ],
-  "preprocessing": "mobilenet_v2.preprocess_input"
+  "input_size": 224,
+  "preprocessing": "imaging.normalize then mobilenet_v2.preprocess_input",
+  "class_weight": "square root inverse frequency",
+  "trained_at": "2026-10-08 17:38:14"
 }

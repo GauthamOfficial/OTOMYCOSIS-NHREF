@@ -1,0 +1,488 @@
+{
+  "generated_at": "2026-10-08 17:43:10",
+  "classes": [
+    "acute_otitis_media",
+    "cerumen_impaction",
+    "chronic_om_active_no_cholesteatoma",
+    "chronic_om_cholesteatoma",
+    "chronic_om_inactive",
+    "chronic_om_suppurative",
+    "chronic_om_unspecified",
+    "myringosclerosis",
+    "normal",
+    "other_findings",
+    "otitis_externa",
+    "otitis_media_effusion"
+  ],
+  "use_tta": true,
+  "val_macro_f1": {
+    "single_view": 0.716462880260285,
+    "tta": 0.7334676370492574
+  },
+  "temperature": 1.2,
+  "calibration": {
+    "test_ece_before": 0.04983894145090267,
+    "test_ece_after": 0.04304810001159446,
+    "test_nll_before": 0.3907349109649658,
+    "test_nll_after": 0.3795585632324219
+  },
+  "test": {
+    "images": 718,
+    "macro_f1": 0.6857806504326484,
+    "accuracy": 0.8495821727019499,
+    "balanced_accuracy": 0.6829181231648725,
+    "coarse_accuracy": 0.862116991643454,
+    "per_class": [
+      {
+        "class": "acute_otitis_media",
+        "name": "Acute Otitis Media",
+        "support": 123,
+        "precision": 0.8359375,
+        "recall": 0.8699186991869918,
+        "recall_ci": [
+          0.7991101236600706,
+          0.9183201200454643
+        ],
+        "f1": 0.852589641434263
+      },
+      {
+        "class": "cerumen_impaction",
+        "name": "Cerumen Impaction",
+        "support": 112,
+        "precision": 0.981651376146789,
+        "recall": 0.9553571428571429,
+        "recall_ci": [
+          0.8997296746265304,
+          0.9807830254742971
+        ],
+        "f1": 0.9683257918552036
+      },
+      {
+        "class": "chronic_om_active_no_cholesteatoma",
+        "name": "Chronic OM, Active, No Cholesteatoma",
+        "support": 13,
+        "precision": 0.6666666666666666,
+        "recall": 0.9230769230769231,
+        "recall_ci": [
+          0.6668546607175265,
+          0.9862899336203037
+        ],
+        "f1": 0.7741935483870968
+      },
+      {
+        "class": "chronic_om_cholesteatoma",
+        "name": "Chronic OM with Cholesteatoma",
+        "support": 9,
+        "precision": 0.7,
+        "recall": 0.7777777777777778,
+        "recall_ci": [
+          0.4525833436728054,
+          0.9367762376877727
+        ],
+        "f1": 0.7368421052631577
+      },
+      {
+        "class": "chronic_om_inactive",
+        "name": "Chronic OM, Inactive",
+        "support": 16,
+        "precision": 0.8181818181818182,
+        "recall": 0.5625,
+        "recall_ci": [
+          0.33178195606776517,
+          0.7690163666481448
+        ],
+        "f1": 0.6666666666666666
+      },
+      {
+        "class": "chronic_om_suppurative",
+        "name": "Chronic Suppurative OM",
+        "support": 10,
+        "precision": 0.4,
+        "recall": 0.2,
+        "recall_ci": [
+          0.056680947980693314,
+          0.5098431532792765
+        ],
+        "f1": 0.26666666666666666
+      },
+      {
+        "class": "chronic_om_unspecified",
+        "name": "Chronic Otitis Media",
+        "support": 91,
+        "precision": 1.0,
+        "recall": 1.0,
+        "recall_ci": [
+          0.959494567784601,
+          1.0
+        ],
+        "f1": 1.0
+      },
+      {
+        "class": "myringosclerosis",
+        "name": "Myringosclerosis",
+        "support": 95,
+        "precision": 1.0,
+        "recall": 0.631578947368421,
+        "recall_ci": [
+          0.5312293801072515,
+          0.7217005603226888
+        ],
+        "f1": 0.7741935483870968
+      },
+      {
+        "class": "normal",
+        "name": "Normal Ear",
+        "support": 217,
+        "precision": 0.7738095238095238,
+        "recall": 0.8986175115207373,
+        "recall_ci": [
+          0.8512747691685414,
+          0.9320921327195086
+        ],
+        "f1": 0.8315565031982942
+      },
+      {
+        "class": "other_findings",
+        "name": "Other Findings",
+        "support": 5,
+        "precision": 0.4,
+        "recall": 0.4,
+        "recall_ci": [
+          0.1176182311592533,
+          0.769280067791163
+        ],
+        "f1": 0.4000000000000001
+      },
+      {
+        "class": "otitis_externa",
+        "name": "Otitis Externa",
+        "support": 6,
+        "precision": 0.5,
+        "recall": 0.16666666666666666,
+        "recall_ci": [
+          0.03005258587173032,
+          0.563509436563646
+        ],
+        "f1": 0.25
+      },
+      {
+        "class": "otitis_media_effusion",
+        "name": "Otitis Media with Effusion",
+        "support": 21,
+        "precision": 0.6296296296296297,
+        "recall": 0.8095238095238095,
+        "recall_ci": [
+          0.599990134607267,
+          0.9233255938482269
+        ],
+        "f1": 0.7083333333333334
+      }
+    ],
+    "confusion": [
+      [
+        107,
+        0,
+        0,
+        2,
+        0,
+        1,
+        0,
+        0,
+        12,
+        0,
+        0,
+        1
+      ],
+      [
+        2,
+        107,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        12,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        1,
+        0,
+        0,
+        7,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        5,
+        1,
+        9,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      [
+        0,
+        0,
+        1,
+        0,
+        0,
+        2,
+        0,
+        0,
+        5,
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        91,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        60,
+        33,
+        1,
+        0,
+        0
+      ],
+      [
+        13,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        195,
+        0,
+        0,
+        8
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        1,
+        2,
+        1,
+        0
+      ],
+      [
+        2,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        0,
+        1,
+        0
+      ],
+      [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        17
+      ]
+    ]
+  },
+  "referral": {
+    "threshold": 0.23200857639312744,
+    "target_sensitivity": 0.97,
+    "sensitivity": 0.9700598802395209,
+    "sensitivity_ci": [
+      0.9511923352673856,
+      0.9817735692856465
+    ],
+    "specificity": 0.7557603686635944,
+    "specificity_ci": [
+      0.6944718472680711,
+      0.8081508470069205
+    ],
+    "ppv": 0.9016697588126159,
+    "npv": 0.9162011173184358,
+    "auroc": 0.9743186438183541,
+    "tp": 486,
+    "fn": 15,
+    "tn": 164,
+    "fp": 53
+  },
+  "operating_points": [
+    {
+      "target": 0.9,
+      "threshold": 0.48489910364151,
+      "test_sensitivity": 0.9001996007984032,
+      "test_specificity": 0.8709677419354839
+    },
+    {
+      "target": 0.93,
+      "threshold": 0.3811948299407959,
+      "test_sensitivity": 0.9341317365269461,
+      "test_specificity": 0.8341013824884793
+    },
+    {
+      "target": 0.95,
+      "threshold": 0.2856924533843994,
+      "test_sensitivity": 0.9500998003992016,
+      "test_specificity": 0.783410138248848
+    },
+    {
+      "target": 0.97,
+      "threshold": 0.23200857639312744,
+      "test_sensitivity": 0.9700598802395209,
+      "test_specificity": 0.7557603686635944
+    },
+    {
+      "target": 0.99,
+      "threshold": 0.18913668394088745,
+      "test_sensitivity": 0.9900199600798403,
+      "test_specificity": 0.728110599078341
+    }
+  ],
+  "referral_misses": {
+    "acute_otitis_media": 2,
+    "cerumen_impaction": 1,
+    "myringosclerosis": 11,
+    "other_findings": 1
+  },
+  "confidence_gate": {
+    "flagged_fraction": 0.0403899721448468,
+    "accuracy_confident": 0.872278664731495,
+    "accuracy_flagged": 0.3103448275862069
+  },
+  "source_stratified": [
+    {
+      "class": "acute_otitis_media",
+      "by_source": {
+        "A": {
+          "correct": 85,
+          "total": 89
+        },
+        "B": {
+          "correct": 9,
+          "total": 18
+        },
+        "C": {
+          "correct": 13,
+          "total": 16
+        }
+      }
+    },
+    {
+      "class": "cerumen_impaction",
+      "by_source": {
+        "A": {
+          "correct": 90,
+          "total": 90
+        },
+        "B": {
+          "correct": 17,
+          "total": 22
+        }
+      }
+    },
+    {
+      "class": "myringosclerosis",
+      "by_source": {
+        "A": {
+          "correct": 58,
+          "total": 91
+        },
+        "B": {
+          "correct": 2,
+          "total": 4
+        }
+      }
+    },
+    {
+      "class": "normal",
+      "by_source": {
+        "A": {
+          "correct": 88,
+          "total": 88
+        },
+        "B": {
+          "correct": 67,
+          "total": 82
+        },
+        "C": {
+          "correct": 40,
+          "total": 47
+        }
+      }
+    }
+  ],
+  "split_sizes": {
+    "train": 3326,
+    "test": 718,
+    "val": 719
+  },
+  "grouping": {
+    "method": "connected components of ImageNet MobileNetV2 feature cosine similarity",
+    "threshold": 0.93,
+    "max_test_to_train_similarity": 0.9299891591072083
+  }
+}

@@ -1,12 +1,19 @@
 """Train the ear condition classifier from the prepared manifest.
 
-Two phases. The backbone is frozen while the new head learns, then the top of
-the backbone is unfrozen at a much lower learning rate. BatchNorm layers stay
-in inference mode throughout: MobileNetV2 has 52 of them, and letting their
-running statistics drift on small CPU batches destroys the pretrained features.
+Every image first passes through ear_detection.imaging.normalize, the same
+function the service applies at inference, and the result is cached as a
+lossless PNG. The fixed circular field of view it imposes is what stops the
+network from identifying the source dataset instead of the ear.
 
-Selection is on macro F1, not accuracy. The classes run from 1013 training
-images down to 20, so accuracy would be dominated by the majority class.
+Training runs in two phases. The backbone is frozen while the new head
+learns, then the upper backbone is unfrozen at a much lower learning rate on
+a cosine schedule. BatchNorm layers stay in inference mode throughout:
+MobileNetV2 has 52 of them, and letting their running statistics drift on
+small CPU batches destroys the pretrained features.
+
+The checkpoint kept is the one with the best validation macro F1, not
+accuracy. Classes run from about a thousand training images down to twenty,
+so accuracy would be dominated by the majority class.
 
 Usage:
     python scripts/train.py [--epochs-head N] [--epochs-finetune N]
@@ -17,74 +24,110 @@ import csv
 import json
 import os
 import sys
+import time
 
 import numpy as np
 import tensorflow as tf
+from PIL import Image
 from tensorflow import keras
 from tensorflow.keras import layers
 
-BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
-ARTIFACTS = os.path.join(BASE_DIR, "artifacts")
-MANIFEST = os.path.join(ARTIFACTS, "manifest.csv")
-LABELS = os.path.join(ARTIFACTS, "labels.json")
+from common import ARTIFACTS, BASE_DIR, LABELS, MANIFEST, NORMALIZED_DIR, normalized_path
+from ear_detection import imaging
+
+INPUT_STATS = os.path.join(ARTIFACTS, "input_stats.json")
 MODEL_OUT = os.path.join(BASE_DIR, "models", "ear_classifier.keras")
-CACHE_DIR = os.path.join(ARTIFACTS, "cache")
 
-IMAGE_SIZE = (224, 224)
-BATCH_SIZE = 16          # kept small: 4 CPU cores and limited free RAM
+SIZE = imaging.INPUT_SIZE
+BATCH_SIZE = 16          # 4 CPU cores and limited free RAM
 SEED = 1337
+UNFREEZE_FROM = "block_9_expand"
 
 
-def load_manifest():
-    with open(MANIFEST, newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    with open(LABELS, encoding="utf-8") as fh:
-        meta = json.load(fh)
-    return rows, meta
+def build_normalized_cache(rows):
+    """Normalise every image once and record input statistics.
+
+    The brightness and sharpness ranges of the training split are saved so
+    the service can warn when an upload falls outside what the model saw.
+    """
+    os.makedirs(NORMALIZED_DIR, exist_ok=True)
+    train_stats = {"brightness": [], "sharpness": []}
+    started = time.time()
+
+    for i, row in enumerate(rows):
+        target = normalized_path(row["path"])
+        if os.path.isfile(target):
+            array = np.asarray(Image.open(target).convert("RGB"), dtype=np.uint8)
+        else:
+            source = os.path.join(BASE_DIR, row["path"])
+            array = imaging.normalize(imaging.open_image(source))
+            Image.fromarray(array).save(target, optimize=False)
+
+        if row["split"] == "train":
+            stats = imaging.input_statistics(array)
+            train_stats["brightness"].append(stats["brightness"])
+            train_stats["sharpness"].append(stats["sharpness"])
+
+        if (i + 1) % 500 == 0:
+            print("  normalised %d / %d  (%.0fs)" % (i + 1, len(rows), time.time() - started))
+
+    summary = {}
+    for key, values in train_stats.items():
+        values = np.asarray(values)
+        summary[key] = {
+            "p01": float(np.percentile(values, 1)),
+            "p05": float(np.percentile(values, 5)),
+            "median": float(np.median(values)),
+            "p95": float(np.percentile(values, 95)),
+            "p99": float(np.percentile(values, 99)),
+        }
+    with open(INPUT_STATS, "w", encoding="utf-8") as fh:
+        json.dump(summary, fh, indent=2)
+    print("  input ranges written to", INPUT_STATS)
 
 
-def build_dataset(rows, class_to_index, split, augment, cache_name):
+def build_dataset(rows, class_to_index, split, augment):
     subset = [r for r in rows if r["split"] == split]
-    paths = [os.path.join(BASE_DIR, r["path"]) for r in subset]
+    paths = [normalized_path(r["path"]) for r in subset]
     labels = [class_to_index[r["label"]] for r in subset]
 
     ds = tf.data.Dataset.from_tensor_slices((paths, labels))
+    if augment:
+        ds = ds.shuffle(len(subset), seed=SEED, reshuffle_each_iteration=True)
 
     def decode(path, label):
-        data = tf.io.read_file(path)
-        # channels=3 normalises greyscale and RGBA inputs alike
-        image = tf.io.decode_image(data, channels=3, expand_animations=False)
-        image = tf.image.resize(image, IMAGE_SIZE)
-        image.set_shape([IMAGE_SIZE[0], IMAGE_SIZE[1], 3])
+        image = tf.io.decode_png(tf.io.read_file(path), channels=3)
+        image = tf.cast(image, tf.float32)
+        image.set_shape([SIZE, SIZE, 3])
         return image, label
 
     ds = ds.map(decode, num_parallel_calls=tf.data.AUTOTUNE)
 
-    # Cache the decoded and resized images on disk so JPEG decoding happens
-    # once rather than every epoch. Caching before augmentation keeps the
-    # random transforms varying across epochs.
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    ds = ds.cache(os.path.join(CACHE_DIR, cache_name))
-
     if augment:
-        ds = ds.shuffle(min(len(subset), 1000), seed=SEED, reshuffle_each_iteration=True)
+        mask = tf.constant(imaging.fov_mask()[..., None], dtype=tf.float32)
+        # Otoscope orientation is arbitrary, so any angle is label preserving.
+        # The circle is invariant under rotation, so nothing outside it leaks in.
+        rotate = layers.RandomRotation(0.5, fill_mode="constant", fill_value=0.0, seed=SEED)
+        # Zoom in only. Zooming out would draw a black ring inside the circle,
+        # a pattern the service never produces.
+        zoom = layers.RandomZoom((-0.12, 0.0), fill_mode="constant", fill_value=0.0, seed=SEED)
 
         def augmentation(image, label):
-            # Otoscope orientation is arbitrary and either ear may be imaged,
-            # so full rotation and mirroring are both label preserving.
             image = tf.image.random_flip_left_right(image)
-            image = tf.image.rot90(image, k=tf.random.uniform([], 0, 4, dtype=tf.int32))
+            image = rotate(image, training=True)
+            image = zoom(image, training=True)
             # Illumination varies widely between devices and operators.
-            image = tf.image.random_brightness(image, 25.0)
+            image = tf.image.random_brightness(image, 20.0)
             image = tf.image.random_contrast(image, 0.85, 1.15)
-            # Colour carries diagnostic signal, so hue is nudged only slightly.
-            image = tf.image.random_hue(image, 0.02)
+            # Colour is diagnostic (erythema, debris), so hue moves only slightly.
             image = tf.image.random_saturation(image, 0.9, 1.1)
-            return tf.clip_by_value(image, 0.0, 255.0), label
+            image = tf.image.random_hue(image, 0.02)
+            # Restore the exact field of view the service will present.
+            image = tf.clip_by_value(image, 0.0, 255.0) * mask
+            return image, label
 
         ds = ds.map(augmentation, num_parallel_calls=tf.data.AUTOTUNE)
 
-    # Must match what the service applies at inference time.
     ds = ds.map(
         lambda x, y: (keras.applications.mobilenet_v2.preprocess_input(x), y),
         num_parallel_calls=tf.data.AUTOTUNE,
@@ -104,22 +147,24 @@ def set_backbone_trainable(backbone, trainable, from_layer=None):
             layer.trainable = trainable and started
 
 
-class MacroF1(keras.callbacks.Callback):
-    """Macro F1 on the validation set, plus best-weight tracking."""
+class ValidationTracker(keras.callbacks.Callback):
+    """Validation macro F1 and referral sensitivity, with best-weight tracking."""
 
-    def __init__(self, val_ds, num_classes):
+    def __init__(self, val_ds, num_classes, normal_index):
         super().__init__()
         self.val_ds = val_ds
         self.num_classes = num_classes
+        self.normal_index = normal_index
         self.best = -1.0
         self.best_weights = None
+        self.best_epoch = None
         self.history = []
 
     def on_epoch_end(self, epoch, logs=None):
         true, pred = [], []
         for batch_x, batch_y in self.val_ds:
-            probs = self.model(batch_x, training=False)
-            pred.extend(np.argmax(probs.numpy(), axis=1))
+            probs = self.model(batch_x, training=False).numpy()
+            pred.extend(np.argmax(probs, axis=1))
             true.extend(batch_y.numpy())
         true, pred = np.array(true), np.array(pred)
 
@@ -131,118 +176,119 @@ class MacroF1(keras.callbacks.Callback):
             precision = tp / (tp + fp) if tp + fp else 0.0
             recall = tp / (tp + fn) if tp + fn else 0.0
             f1s.append(2 * precision * recall / (precision + recall) if precision + recall else 0.0)
-
         macro = float(np.mean(f1s))
-        logs = logs or {}
-        logs["val_macro_f1"] = macro
-        self.history.append(macro)
+
+        diseased = true != self.normal_index
+        sensitivity = float(np.mean(pred[diseased] != self.normal_index))
+
+        self.history.append({"macro_f1": macro, "referral_sensitivity": sensitivity})
+        marker = ""
         if macro > self.best:
             self.best = macro
             self.best_weights = self.model.get_weights()
+            self.best_epoch = len(self.history)
             marker = "  <- best"
-        else:
-            marker = ""
-        print("    epoch %02d  val_macro_f1 %.4f%s" % (epoch + 1, macro, marker))
+        print("    epoch %02d  val_macro_f1 %.4f  referral_sensitivity %.3f%s"
+              % (epoch + 1, macro, sensitivity, marker), flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--epochs-head", type=int, default=12)
-    parser.add_argument("--epochs-finetune", type=int, default=14)
+    parser.add_argument("--epochs-head", type=int, default=10)
+    parser.add_argument("--epochs-finetune", type=int, default=18)
     args = parser.parse_args()
 
     keras.utils.set_random_seed(SEED)
 
-    rows, meta = load_manifest()
+    with open(MANIFEST, newline="", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    with open(LABELS, encoding="utf-8") as fh:
+        meta = json.load(fh)
     classes = meta["classes"]
     class_to_index = meta["class_to_index"]
     num_classes = len(classes)
 
-    train_ds, n_train, train_labels = build_dataset(rows, class_to_index, "train", True, "train")
-    val_ds, n_val, _ = build_dataset(rows, class_to_index, "val", False, "val")
+    print("=== normalising images ===", flush=True)
+    build_normalized_cache(rows)
 
-    print("classes %d   train %d   val %d" % (num_classes, n_train, n_val))
+    train_ds, n_train, train_labels = build_dataset(rows, class_to_index, "train", True)
+    val_ds, n_val, _ = build_dataset(rows, class_to_index, "val", False)
+    print("classes %d   train %d   val %d" % (num_classes, n_train, n_val), flush=True)
 
-    # Inverse frequency weighting so the rare classes are not ignored.
+    # Square root inverse frequency. Full inverse frequency gave the smallest
+    # class a weight near 14 and made the model shout it at normal ears.
     counts = np.bincount(train_labels, minlength=num_classes).astype(np.float64)
-    class_weight = {
-        i: float(n_train / (num_classes * counts[i])) if counts[i] else 0.0
-        for i in range(num_classes)
-    }
-    print("class weights:", {classes[i]: round(w, 2) for i, w in class_weight.items()})
+    raw = np.sqrt(counts.max() / np.maximum(counts, 1))
+    raw = raw / (np.sum(counts * raw) / n_train)
+    class_weight = {i: float(raw[i]) for i in range(num_classes)}
+    print("class weights:", {classes[i]: round(w, 2) for i, w in class_weight.items()}, flush=True)
 
     backbone = keras.applications.MobileNetV2(
-        input_shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3),
-        include_top=False,
-        weights="imagenet",
+        input_shape=(SIZE, SIZE, 3), include_top=False, weights="imagenet",
     )
     set_backbone_trainable(backbone, False)
 
-    inputs = keras.Input(shape=(IMAGE_SIZE[0], IMAGE_SIZE[1], 3))
+    inputs = keras.Input(shape=(SIZE, SIZE, 3), name="image")
     x = backbone(inputs, training=False)
-    x = layers.GlobalAveragePooling2D()(x)
-    x = layers.Dropout(0.3)(x)
+    x = layers.GlobalAveragePooling2D(name="pool")(x)
+    x = layers.Dropout(0.3, name="dropout")(x)
     outputs = layers.Dense(num_classes, activation="softmax", name="predictions")(x)
     model = keras.Model(inputs, outputs, name="ear_classifier")
 
-    tracker = MacroF1(val_ds, num_classes)
+    tracker = ValidationTracker(val_ds, num_classes, class_to_index["normal"])
 
-    print("\n=== phase 1: frozen backbone ===")
+    print("\n=== phase 1: frozen backbone ===", flush=True)
     model.compile(
         optimizer=keras.optimizers.Adam(1e-3),
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
-    model.fit(
-        train_ds,
-        validation_data=val_ds,
-        epochs=args.epochs_head,
-        class_weight=class_weight,
-        callbacks=[tracker],
-        verbose=2,
-    )
+    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs_head,
+              class_weight=class_weight, callbacks=[tracker], verbose=2)
 
-    print("\n=== phase 2: fine tune top of backbone ===")
-    set_backbone_trainable(backbone, True, from_layer="block_12_expand")
+    print("\n=== phase 2: fine tune from %s ===" % UNFREEZE_FROM, flush=True)
+    set_backbone_trainable(backbone, True, from_layer=UNFREEZE_FROM)
     trainable = sum(1 for l in backbone.layers if l.trainable)
     print("backbone layers trainable: %d of %d (BatchNorm held frozen)"
-          % (trainable, len(backbone.layers)))
+          % (trainable, len(backbone.layers)), flush=True)
 
+    steps = int(np.ceil(n_train / BATCH_SIZE)) * max(args.epochs_finetune, 1)
+    schedule = keras.optimizers.schedules.CosineDecay(3e-5, decay_steps=steps, alpha=0.03)
     model.compile(
-        optimizer=keras.optimizers.Adam(1e-5),
+        optimizer=keras.optimizers.Adam(schedule),
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
-    model.fit(
-        train_ds,
-        validation_data=val_ds,
-        epochs=args.epochs_finetune,
-        class_weight=class_weight,
-        callbacks=[tracker],
-        verbose=2,
-    )
+    model.fit(train_ds, validation_data=val_ds, epochs=args.epochs_finetune,
+              class_weight=class_weight, callbacks=[tracker], verbose=2)
 
     if tracker.best_weights is not None:
         model.set_weights(tracker.best_weights)
-        print("\nrestored best weights, val_macro_f1 %.4f" % tracker.best)
+        print("\nrestored best weights from epoch %d, val_macro_f1 %.4f"
+              % (tracker.best_epoch, tracker.best), flush=True)
 
     os.makedirs(os.path.dirname(MODEL_OUT), exist_ok=True)
     model.save(MODEL_OUT)
 
-    # The class order travels with the weights. Not recording this is what
-    # made the previous model unusable.
+    # The class order travels with the weights. Not recording it is what made
+    # the original model unusable.
     with open(os.path.join(ARTIFACTS, "training_summary.json"), "w", encoding="utf-8") as fh:
         json.dump({
             "classes": classes,
+            "backbone": "MobileNetV2 (ImageNet)",
+            "unfrozen_from": UNFREEZE_FROM,
+            "best_epoch": tracker.best_epoch,
             "best_val_macro_f1": tracker.best,
-            "macro_f1_history": tracker.history,
+            "history": tracker.history,
             "train_images": n_train,
             "val_images": n_val,
-            "image_size": list(IMAGE_SIZE),
-            "preprocessing": "mobilenet_v2.preprocess_input",
+            "input_size": SIZE,
+            "preprocessing": "imaging.normalize then mobilenet_v2.preprocess_input",
+            "class_weight": "square root inverse frequency",
+            "trained_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }, fh, indent=2)
 
-    print("saved model to", MODEL_OUT)
+    print("saved model to", MODEL_OUT, flush=True)
 
 
 if __name__ == "__main__":

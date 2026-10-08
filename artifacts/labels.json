@@ -55,5 +55,9 @@
     "Ear VentilationTube": "other_findings"
   },
   "seed": 1337,
-  "hash_distance": 4
+  "grouping": {
+    "method": "connected components of ImageNet MobileNetV2 feature cosine similarity",
+    "threshold": 0.93,
+    "max_test_to_train_similarity": 0.9299891591072083
+  }
 }
