@@ -35,16 +35,14 @@
 
     function edit() {
       cell.textContent = "";
+      var box = el("div", "cell-edit");
       var input = el("input", "input");
       input.type = "text";
       input.value = user.email;
       input.spellcheck = false;
-      input.style.minWidth = "200px";
       var save = el("button", "btn btn-small btn-primary", "Save");
       var cancel = el("button", "btn btn-small", "Cancel");
       save.type = cancel.type = "button";
-      save.style.marginLeft = "6px";
-      cancel.style.marginLeft = "6px";
 
       function submit() {
         var email = input.value.trim().toLowerCase();
@@ -73,9 +71,10 @@
         if (e.key === "Enter") { e.preventDefault(); submit(); }
         if (e.key === "Escape") { show(); }
       });
-      cell.appendChild(input);
-      cell.appendChild(save);
-      cell.appendChild(cancel);
+      box.appendChild(input);
+      box.appendChild(save);
+      box.appendChild(cancel);
+      cell.appendChild(box);
       input.focus();
       input.select();
     }
