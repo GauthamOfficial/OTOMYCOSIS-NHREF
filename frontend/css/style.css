@@ -46,6 +46,9 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* Nothing is allowed to be wider than the screen it is on. */
+img, svg, video, canvas { max-width: 100%; }
+
 /* Keep [hidden] authoritative even where a block sets its own display. */
 [hidden] { display: none !important; }
 
@@ -1425,6 +1428,113 @@ kbd {
   .user-name { display: none; }
   .field-row, .inline-form { grid-template-columns: minmax(0, 1fr); }
   .data-table th, .data-table td { padding: 8px; }
+}
+
+/* ============ Touch devices ============ */
+
+/* Safari on iOS zooms the page in whenever a control smaller than 16px is
+   focused, and does not zoom back out, so the rest of the form is left off
+   screen. Targets also have to be big enough to hit while the other hand is
+   holding an otoscope: 44px is the smallest both Apple and Google call
+   reliable. Pointer, not width, because a tablet is wide and still touched. */
+@media (pointer: coarse) {
+  .input, .field input[type="text"], .field input[type="password"],
+  .field input[type="number"], .field select, .field textarea {
+    font-size: 16px;
+    padding: 10px 12px;
+  }
+
+  .btn { min-height: 44px; padding: 11px 16px; font-size: 13.5px; }
+  .btn-small { min-height: 38px; padding: 9px 13px; font-size: 12.5px; }
+
+  .app-nav a { padding: 12px 14px; }
+  .segmented span { padding: 12px 8px; }
+  .option-row { padding: 12px 11px; }
+  .option-row input { width: 18px; height: 18px; }
+  .dropzone { padding: 30px 18px; }
+}
+
+/* ============ Phones ============ */
+
+@media (max-width: 620px) {
+  /* The masthead becomes three bands: who we are, who is signed in, where to
+     go. The nav is already sent to the end by the block above. */
+  .masthead-inner.app { gap: 10px; padding-top: 10px; padding-bottom: 6px; }
+  .user-box { margin-left: auto; }
+
+  .titlebar-inner { padding-top: 18px; padding-bottom: 16px; }
+  .workspace { gap: 16px; padding-top: 18px; padding-bottom: 32px; }
+  .card-head { padding: 12px 14px; }
+  .card-body { padding: 15px 14px; }
+
+  /* Filters and paging read as a column instead of a cramped row. */
+  .toolbar { flex-direction: column; align-items: stretch; }
+  .toolbar .field { min-width: 0; }
+  .toolbar > .btn { width: 100%; }
+
+  .pager { flex-direction: column; align-items: stretch; gap: 10px; text-align: center; }
+  .pager > span:last-child { display: flex; gap: 8px; }
+  .pager > span:last-child > .btn { flex: 1 1 0; }
+
+  /* Label above value: a record number or a class name is easily wider than
+     half a phone. */
+  .facts { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .facts dt { margin-top: 9px; }
+  .facts dt:first-child { margin-top: 0; }
+
+  .attention-grid { gap: 10px; }
+
+  /* A table of four columns or more cannot be read on a phone by scrolling
+     it sideways, because the heading for the value under your thumb is off
+     screen. Each row becomes a block instead, carrying the column name
+     beside every value. core.js copies those names from the table's own
+     header, so they cannot drift away from it. */
+  .data-table.is-stackable thead { display: none; }
+
+  .data-table.is-stackable,
+  .data-table.is-stackable tbody,
+  .data-table.is-stackable tr { display: block; }
+
+  .data-table.is-stackable tr { padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .data-table.is-stackable tr:last-child { border-bottom: none; }
+
+  .data-table.is-stackable td {
+    display: grid;
+    grid-template-columns: 7.5em minmax(0, 1fr);
+    gap: 10px;
+    padding: 3px 0;
+    border: none;
+    overflow-wrap: break-word;
+  }
+
+  .data-table.is-stackable td::before {
+    content: attr(data-label);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-400);
+  }
+
+  /* A cell the renderer left empty, or one spanning the row such as the
+     "nothing found" line, carries no label and stays a plain block. */
+  .data-table.is-stackable td:empty { display: none; }
+  .data-table.is-stackable td:not([data-label]) { display: block; }
+  .data-table.is-stackable td.num { text-align: left; }
+}
+
+/* ============ Narrow phones ============ */
+
+@media (max-width: 420px) {
+  .stats { grid-template-columns: minmax(0, 1fr); }
+  .titlebar h1 { font-size: 18px; }
+
+  .app-nav { gap: 0; }
+  .app-nav a { padding-left: 10px; padding-right: 10px; font-size: 12.5px; }
+  .user-box { width: 100%; justify-content: flex-end; }
+
+  /* Too narrow for a label column, so the label sits above its value. */
+  .data-table.is-stackable td { grid-template-columns: minmax(0, 1fr); gap: 0; }
 }
 
 /* ============ Print ============ */

@@ -69,6 +69,52 @@ window.App = (function () {
   function statusPill(status) { return pill(status, STATUS_TEXT[status] || status); }
   function referralPill(rec) { return pill(rec, rec === "refer" ? "Refer" : "Routine"); }
 
+  /* ---------------- tables on a phone ---------------- */
+
+  /* A table of four columns or more is unreadable on a phone: scrolled
+     sideways, the heading belonging to the value under your thumb is off
+     screen. The stylesheet stacks each row into a block and prints the
+     column name beside every value, which it takes from this attribute.
+     The names are copied from the table's own header rather than written
+     out again, so a column that is renamed or reordered cannot leave a
+     value labelled as something it is not.
+
+     Rows are filled in after their view is mounted, and again on every
+     search or page change, so new ones are stamped as they appear. */
+  var STACK_FROM_COLUMNS = 4;
+
+  function labelTableCells() {
+    [].forEach.call(document.querySelectorAll("table.data-table"), function (table) {
+      var heads = [].map.call(table.querySelectorAll("thead th"), function (th) {
+        return th.textContent.trim();
+      });
+      if (heads.length < STACK_FROM_COLUMNS) { return; }
+      table.classList.add("is-stackable");
+      [].forEach.call(table.querySelectorAll("tbody tr"), function (row) {
+        [].forEach.call(row.cells, function (cell, index) {
+          /* A cell spanning the row, such as an empty state, names no column. */
+          if (cell.colSpan === 1 && heads[index] && !cell.hasAttribute("data-label")) {
+            cell.setAttribute("data-label", heads[index]);
+          }
+        });
+      });
+    });
+  }
+
+  /* One pass per frame however many rows arrived in it. Setting an attribute
+     is not a child change, so this cannot trigger itself. */
+  var labelPending = false;
+  if (window.MutationObserver) {
+    new MutationObserver(function () {
+      if (labelPending) { return; }
+      labelPending = true;
+      requestAnimationFrame(function () {
+        labelPending = false;
+        labelTableCells();
+      });
+    }).observe(document.documentElement, { childList: true, subtree: true });
+  }
+
   var toastTimer = null;
   function toast(message, isError) {
     var box = document.getElementById("toast");
@@ -249,6 +295,7 @@ window.App = (function () {
     STATUS_TEXT: STATUS_TEXT, toast: toast, showError: showError,
     login: login, googleLogin: googleLogin, logout: logout, refresh: refresh, request: request,
     imageUrl: imageUrl, releaseUrls: releaseUrls,
+    labelTableCells: labelTableCells,
     views: {}
   };
 })();
