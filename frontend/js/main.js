@@ -19,13 +19,84 @@
 
   var loginForm = document.getElementById("login-form");
   var loginError = document.getElementById("login-error");
+  var googleBox = document.getElementById("login-google");
+  var googleReady = false;
 
   function showLogin(message) {
     showScreen("login");
     App.showError(loginError, message || "");
     loginForm.reset();
-    document.getElementById("login-username").focus();
+    if (googleReady) {
+      /* Google is the normal way in; the password form stays out of the way
+         until someone says they cannot use it. */
+      loginForm.hidden = true;
+    } else {
+      document.getElementById("login-username").focus();
+    }
   }
+
+  /* ---------------- Sign in with Google ---------------- */
+
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var tag = document.createElement("script");
+      tag.src = src;
+      tag.async = true;
+      tag.onload = resolve;
+      tag.onerror = function () { reject(new Error("blocked")); };
+      document.head.appendChild(tag);
+    });
+  }
+
+  function onGoogleCredential(response) {
+    App.showError(loginError, "");
+    App.googleLogin(response.credential)
+      .then(enter)
+      .catch(function (err) {
+        App.showError(loginError, err.message);
+        /* A refused Google account is usually one nobody has added yet, so
+           offer the other way in rather than leaving a dead end. */
+        loginForm.hidden = false;
+      });
+  }
+
+  function setUpGoogle() {
+    return App.request("GET", "/auth/config", { retry: false }).then(function (conf) {
+      if (!conf.google_enabled) { return; }
+      /* hl=en keeps the button in the language of the rest of the interface,
+         whatever language this computer is set to. */
+      return loadScript("https://accounts.google.com/gsi/client?hl=en").then(function () {
+        if (!window.google || !window.google.accounts) { throw new Error("blocked"); }
+        window.google.accounts.id.initialize({
+          client_id: conf.google_client_id,
+          callback: onGoogleCredential,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          /* Google follows the computer's language by default, which would
+             leave one button in a different language from the interface. */
+          locale: "en"
+        });
+        window.google.accounts.id.renderButton(document.getElementById("login-google-button"), {
+          theme: "outline", size: "large", width: 320, text: "signin_with",
+          shape: "rectangular", logo_alignment: "center", locale: "en"
+        });
+        googleReady = true;
+        googleBox.hidden = false;
+        loginForm.hidden = true;
+      }).catch(function () {
+        /* No internet, or the page is blocked. Leave the password form in
+           place and say why, rather than showing a button that cannot work. */
+        App.showError(loginError, "Google sign in could not be loaded, so this computer "
+          + "appears to be offline. Administrators can sign in with a password.");
+      });
+    }).catch(function () {});
+  }
+
+  document.getElementById("login-password-toggle").addEventListener("click", function () {
+    loginForm.hidden = !loginForm.hidden;
+    this.textContent = loginForm.hidden ? "Cannot use Google?" : "Hide password sign in";
+    if (!loginForm.hidden) { document.getElementById("login-username").focus(); }
+  });
 
   loginForm.addEventListener("submit", function (e) {
     e.preventDefault();
@@ -135,6 +206,8 @@
 
   /* A reload keeps the session through the refresh cookie. */
   App.refresh().then(function (ok) {
-    if (ok) { enter(App.state.user); } else { showLogin(""); }
+    if (ok) { enter(App.state.user); return; }
+    /* The sign in button is only set up when nobody is signed in already. */
+    setUpGoogle().then(function () { showLogin(""); });
   });
 })(window.App);

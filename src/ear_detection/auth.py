@@ -209,10 +209,122 @@ def login():
         db.session.commit()
         return generic
 
+    # Once Google sign in is set up, a password is only the emergency way in
+    # for administrators, so the system stays reachable if Google is not.
+    if config.google_enabled() and user.role not in config.PASSWORD_FALLBACK_ROLES:
+        record("login_failed", user=user, detail={"reason": "password not allowed"},
+               ip=client_ip())
+        db.session.commit()
+        return jsonify({"error": "This account signs in with Google. Use the Sign in with "
+                                 "Google button."}), 403
+
     user.failed_logins = 0
     user.locked_until = None
     user.last_login_at = now
-    record("login", user=user, ip=client_ip())
+    record("login", user=user, detail={"via": "password"}, ip=client_ip())
+    db.session.commit()
+    return session_response(user)
+
+
+# ---------------- Google sign in ----------------
+
+# Allows for a clinic computer whose clock is slightly out, which would
+# otherwise reject a perfectly good token.
+GOOGLE_CLOCK_SKEW_SECONDS = 30
+_google_session = {"request": None}
+
+
+def verify_google_credential(credential):
+    """Claims from a Google ID token, or ValueError if it is not acceptable.
+
+    Google signs the token; this checks that signature against Google's
+    published keys, that the token was issued for this installation's client
+    ID, and that it has not expired. Nothing here trusts the browser.
+    """
+    from google.auth.transport import requests as google_requests
+    from google.oauth2 import id_token
+
+    if _google_session["request"] is None:
+        _google_session["request"] = google_requests.Request()
+    claims = id_token.verify_oauth2_token(
+        credential, _google_session["request"], config.GOOGLE_CLIENT_ID,
+        clock_skew_in_seconds=GOOGLE_CLOCK_SKEW_SECONDS)
+    if not claims.get("email"):
+        raise ValueError("The Google account did not provide an email address.")
+    if not claims.get("email_verified"):
+        raise ValueError("The email address on that Google account is not verified.")
+    return claims
+
+
+@auth_bp.route("/config")
+def sign_in_config():
+    """What the sign in page needs to know, before anyone has signed in."""
+    response = jsonify({
+        "google_enabled": config.google_enabled(),
+        "google_client_id": config.GOOGLE_CLIENT_ID,
+        "password_roles": list(config.PASSWORD_FALLBACK_ROLES),
+    })
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@auth_bp.route("/google", methods=["POST"])
+def google_login():
+    """Sign in with the ID token from the Sign in with Google button.
+
+    A Google account is not by itself permission to use the system: an
+    administrator must already have added that address under Admin, Users.
+    """
+    if not config.google_enabled():
+        return jsonify({"error": "Google sign in is not set up on this system."}), 400
+    credential = str((request.get_json(silent=True) or {}).get("credential", ""))
+    if not credential:
+        return jsonify({"error": "No Google sign in was received. Try again."}), 400
+
+    def refuse(message, status, **detail):
+        record("login_failed", detail=dict(detail, via="google"), ip=client_ip())
+        db.session.commit()
+        return jsonify({"error": message}), status
+
+    try:
+        claims = verify_google_credential(credential)
+    except ValueError as exc:
+        return refuse("Google sign in could not be verified: %s If this keeps happening, "
+                      "check that this computer's clock is correct." % exc, 401,
+                      reason="rejected token")
+    except Exception:
+        # Google's keys could not be fetched, which normally means no internet.
+        return refuse("Google could not be reached to check that sign in. Check this "
+                      "computer's internet connection and try again.", 503,
+                      reason="google unreachable")
+
+    email = claims["email"].strip().lower()
+    subject = str(claims.get("sub") or "")
+    user = User.query.filter_by(username=email).first()
+    if user is None:
+        return refuse("There is no account for %s on this system. Ask an administrator to "
+                      "add it." % email, 403, email=email[:64], reason="unknown address")
+    if not user.is_active:
+        return refuse("This account has been deactivated.", 403, reason="inactive")
+
+    # One Google account per record, so an address that changed hands at
+    # Google cannot inherit the old account.
+    other = User.query.filter(User.google_sub == subject, User.id != user.id).first()
+    if other is not None or (user.google_sub and user.google_sub != subject):
+        return refuse("That Google account does not match the one linked to this address. "
+                      "Ask an administrator.", 403, reason="different google account")
+
+    if not user.google_sub:
+        user.google_sub = subject
+        user.google_linked_at = utcnow()
+        record("google_linked", user=user, entity="user", entity_id=user.id, ip=client_ip())
+
+    # Signing in with Google proves who they are, so any lockout from earlier
+    # password attempts has served its purpose.
+    user.failed_logins = 0
+    user.locked_until = None
+    user.last_login_at = utcnow()
+    record("login", user=user, detail={"via": "google"}, ip=client_ip())
     db.session.commit()
     return session_response(user)
 

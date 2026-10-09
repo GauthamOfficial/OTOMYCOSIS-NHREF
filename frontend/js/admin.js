@@ -88,6 +88,19 @@
     App.mount(panel, "tpl-admin-users");
     var form = r(panel, "add-user");
 
+    /* With Google sign in, clinicians need no password at all, and an
+       administrator's password is only the emergency way in. */
+    App.request("GET", "/auth/config").then(function (conf) {
+      if (!conf.google_enabled) { return; }
+      r(panel, "password-label").textContent = "Temporary password (optional)";
+      var hint = r(panel, "password-hint");
+      hint.insertBefore(document.createTextNode(
+        "They sign in with this Google account. Leave the password empty for clinicians. " +
+        "Give administrators one as well: it is the only way in if Google cannot be reached. "),
+        hint.firstChild);
+      hint.removeChild(hint.childNodes[1]);
+    }).catch(function () {});
+
     r(panel, "generate").addEventListener("click", function () {
       form.elements.password.value = randomPassword();
     });
@@ -100,6 +113,7 @@
         role: form.elements.role.value,
         password: form.elements.password.value
       };
+      if (!payload.password) { delete payload.password; }
       App.request("POST", "/admin/users", { json: payload }).then(function (data) {
         App.showError(r(panel, "error"), "");
         App.toast("Added " + data.user.full_name + ". Give them the temporary password in person.");
@@ -139,6 +153,7 @@
           statusCell.appendChild(u.is_active ? App.pill("active", "Active") : App.pill("inactive", "Inactive"));
           if (u.locked) { statusCell.appendChild(el("span", "sub", "Locked after failed sign ins")); }
           if (u.must_change_password && u.is_active) { statusCell.appendChild(el("span", "sub", "Temporary password")); }
+          if (u.google_linked) { statusCell.appendChild(el("span", "sub", "Google account linked")); }
           tr.appendChild(statusCell);
 
           tr.appendChild(el("td", "muted", u.last_login_at ? App.formatDate(u.last_login_at) : "Never"));

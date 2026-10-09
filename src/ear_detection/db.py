@@ -47,6 +47,12 @@ class User(db.Model):
     full_name = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(16), nullable=False, default="clinician")
     password_hash = db.Column(db.String(255), nullable=False)
+    # Google's permanent identifier for the account that signed in, recorded
+    # the first time they do. An email address can in principle be reassigned
+    # to a different Google account; this is what makes sure the person behind
+    # the address has not changed.
+    google_sub = db.Column(db.String(64), unique=True)
+    google_linked_at = db.Column(db.DateTime(timezone=True))
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     must_change_password = db.Column(db.Boolean, nullable=False, default=True)
     failed_logins = db.Column(db.Integer, nullable=False, default=0)
@@ -68,6 +74,7 @@ class User(db.Model):
             "role": self.role,
             "is_active": self.is_active,
             "must_change_password": self.must_change_password,
+            "google_linked": bool(self.google_sub),
             "last_login_at": iso(self.last_login_at),
             "created_at": iso(self.created_at),
         }

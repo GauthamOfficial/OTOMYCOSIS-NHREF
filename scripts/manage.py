@@ -65,10 +65,17 @@ def write_env(values):
         "# Set to true only behind a reverse proxy that sets X-Real-IP.",
         "TRUST_PROXY=%s" % values.get("TRUST_PROXY", "false"),
         "MIN_REVIEWS_FOR_RETRAIN=%s" % values.get("MIN_REVIEWS_FOR_RETRAIN", "50"),
-        "",
+        "# The OAuth client ID for Sign in with Google. Empty means passwords.",
+        "GOOGLE_CLIENT_ID=%s" % values.get("GOOGLE_CLIENT_ID", ""),
     ]
+    # Anything else already in the file, such as the backtest settings, is
+    # kept, so re-running setup never quietly undoes a change made by hand.
+    written = {line.split("=", 1)[0] for line in lines if "=" in line}
+    extra = ["%s=%s" % (k, v) for k, v in sorted(values.items()) if k not in written]
+    if extra:
+        lines += ["", "# Kept from the previous settings file."] + extra
     with open(ENV_PATH, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(lines))
+        fh.write("\n".join(lines + [""]))
 
 
 def provision_database(host, port, superuser, superpass, db_name, db_user, db_pass):
@@ -184,6 +191,7 @@ def cmd_setup(args):
         "COOKIE_SECURE": existing.get("COOKIE_SECURE", "false"),
         "TRUST_PROXY": existing.get("TRUST_PROXY", "false"),
         "MIN_REVIEWS_FOR_RETRAIN": existing.get("MIN_REVIEWS_FOR_RETRAIN", "50"),
+        "GOOGLE_CLIENT_ID": existing.get("GOOGLE_CLIENT_ID", ""),
     })
     print("Wrote settings to .env")
 

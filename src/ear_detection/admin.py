@@ -5,6 +5,7 @@ Every route here requires the admin role.
 
 import os
 import re
+import secrets
 import shutil
 from datetime import timedelta
 
@@ -65,12 +66,21 @@ def create_user():
         return _error("Enter the person's full name.", field="full_name")
     if role not in config.ROLE_CHOICES:
         return _error("Choose a valid role.", field="role")
-    problem = password_problem(password, username)
-    if problem:
-        return _error(problem, field="password")
+
+    # With Google sign in there is normally no password at all. One can still
+    # be set, and should be for administrators, as the emergency way in if
+    # Google cannot be reached.
+    if config.google_enabled() and not password:
+        # Unguessable and never shared, so the account can only arrive by Google.
+        password, must_change = secrets.token_urlsafe(32), False
+    else:
+        problem = password_problem(password, username)
+        if problem:
+            return _error(problem, field="password")
+        must_change = True
 
     user = User(username=username, full_name=full_name, role=role,
-                password_hash=hash_password(password), must_change_password=True)
+                password_hash=hash_password(password), must_change_password=must_change)
     db.session.add(user)
     db.session.flush()
     record("user_created", user=g.user, entity="user", entity_id=user.id,

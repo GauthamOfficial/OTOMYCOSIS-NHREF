@@ -313,7 +313,7 @@ setup.bat, start.bat        One click setup and launch on Windows
 .env.example                Settings template; setup writes the real .env
 src/ear_detection/
     api.py                  Application factory and wiring
-    auth.py                 Sign in, tokens, roles, password rules
+    auth.py                 Sign in with Google, tokens, roles, password rules
     exams.py                Examinations, reviews, images, history
     stats.py                Performance against the surgeons' reviews
     backtest.py             Daily backtest against the reviews, and its schedule

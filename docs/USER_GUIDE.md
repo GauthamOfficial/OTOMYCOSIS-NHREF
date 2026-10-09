@@ -8,12 +8,19 @@ Foundation.
 
 ## Signing in
 
-Sign in with the username and password your administrator gave you. The first
-time, you must replace the temporary password with your own: at least 10
-characters, mixing letters with numbers or symbols.
+Click **Sign in with Google** and choose your Google account. There is no
+password to remember. You can only get in with the account an administrator
+has registered for you; any other Google account is refused.
 
-For security you are signed out after 30 minutes without activity, and after
-five wrong passwords the account locks for 15 minutes.
+If Google says you are signed in but this system refuses you, your address
+has not been added yet. Ask an administrator to add it under Admin, Users.
+
+For security you are signed out after 30 minutes without activity.
+
+**If Google will not load.** The button needs the internet. When the
+connection is down, the page says so and **Cannot use Google?** opens a
+password box. Only administrators have a password, so that is the emergency
+way in; clinicians wait for the connection to come back.
 
 ## Screening a patient
 

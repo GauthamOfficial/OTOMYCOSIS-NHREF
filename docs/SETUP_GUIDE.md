@@ -52,7 +52,7 @@ setup wizard, which asks:
 | Superuser password | the password from step 2 |
 | New database name | `ear_screening` (press Enter) |
 | New database user | `ear_app` (press Enter) |
-| Administrator username, name, password | the first administrator's account |
+| Administrator email address, name, password | the first administrator's account |
 
 The wizard creates a dedicated database and a database user that can access
 only that database, with a random password. The service always runs as that
@@ -144,7 +144,57 @@ on the computer it runs on (`http://localhost:5000`) counts as secure. From
 other computers on the network it must be served over HTTPS (section 7), or
 the camera option will explain that it cannot start.
 
-## 10. Daily backtest
+## 10. Sign in with Google
+
+People sign in with their Google account, so there are no clinical passwords
+to issue, remember or reset. Set it up once:
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and
+   create a project, for example `NHREF Ear Screening`.
+2. Open **Google Auth Platform** (shown in older projects as **APIs and
+   Services**, **OAuth consent screen**) and click **Get started**. Enter the
+   app name people will see, a support email, **External** as the audience,
+   and a contact email.
+3. On the **Audience** page, click **Publish app**. The system only asks
+   Google for a name and an email address, which are not sensitive, so Google
+   does not require it to be verified. Left in **Testing** instead, every
+   person must be listed under **Test users**.
+4. Open **Clients**, click **Create client**, and choose **Web application**.
+   Under **Authorised JavaScript origins**, add the address the system is
+   used at:
+   - `http://localhost:5000` and `http://127.0.0.1:5000` on the computer it
+     runs on
+   - the `https://` address as well, if other computers use it (section 7)
+
+   Leave **Authorised redirect URIs** empty. This kind of sign in does not
+   use one.
+5. Copy the **Client ID**, which ends in `.apps.googleusercontent.com`, and
+   put it in `.env`:
+
+   ```
+   GOOGLE_CLIENT_ID=705155314595-example.apps.googleusercontent.com
+   ```
+
+6. Restart the service. The sign in page now shows **Sign in with Google**.
+
+There is no client secret in this arrangement. The browser receives a signed
+token from Google and the service checks that signature against Google's
+published keys, so there is no secret to store or leak. If the Console shows
+you one, you do not need it here.
+
+Each person still needs an account: an administrator adds their Google
+address under **Admin, Users**, and leaves the password empty. A Google
+account that has not been added is refused and the attempt is recorded.
+
+**Keep at least one administrator password.** Google sign in needs the
+internet. If the connection or Google is unavailable, administrators can
+still get in through **Cannot use Google?**, and only administrators can.
+Set that password when creating the account, or later with **Reset
+password**, and keep it somewhere safe offline.
+
+To go back to passwords for everyone, empty `GOOGLE_CLIENT_ID` and restart.
+
+## 11. Daily backtest
 
 While the service is running it re-runs the model in service on every
 surgeon reviewed case once a day and shows the results on the Dashboard. It
@@ -166,7 +216,7 @@ The defaults suit most clinics. To change them, add any of these lines to
 
 Progress and errors are written to `storage\jobs\backtest_N.log`.
 
-## 11. Retraining requirements
+## 12. Retraining requirements
 
 Retraining is started from **Admin, Model and Retraining**. It needs the
 original `Dataset` folder on the same computer, because reviewed clinic cases

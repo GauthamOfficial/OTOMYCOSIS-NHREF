@@ -145,6 +145,21 @@ window.App = (function () {
     });
   }
 
+  function googleLogin(credential) {
+    return fetch(API + "/auth/google", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential: credential })
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok) { throw new Error(data.error || "Google sign in failed."); }
+        state.lastActivity = Date.now();
+        return adopt(data);
+      });
+    });
+  }
+
   function logout(message) {
     var hadSession = !!state.token;
     clearSession();
@@ -232,7 +247,7 @@ window.App = (function () {
     r: r, el: el, mount: mount, pct: pct, formatDate: formatDate, formatSize: formatSize,
     capitalise: capitalise, pill: pill, statusPill: statusPill, referralPill: referralPill,
     STATUS_TEXT: STATUS_TEXT, toast: toast, showError: showError,
-    login: login, logout: logout, refresh: refresh, request: request,
+    login: login, googleLogin: googleLogin, logout: logout, refresh: refresh, request: request,
     imageUrl: imageUrl, releaseUrls: releaseUrls,
     views: {}
   };

@@ -23,6 +23,9 @@ os.environ["STORAGE_DIR"] = os.path.join(_TMP, "storage")
 os.environ["MIN_REVIEWS_FOR_RETRAIN"] = "3"
 # The tests drive the backtest directly; no background scheduler.
 os.environ["BACKTEST_ENABLED"] = "0"
+# Password sign in by default, whatever the real .env says. The Google tests
+# switch it on for themselves.
+os.environ["GOOGLE_CLIENT_ID"] = ""
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 SAMPLE = os.path.join(ROOT, "docs", "images", "normalear.JPG")

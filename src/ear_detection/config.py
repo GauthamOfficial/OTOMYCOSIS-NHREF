@@ -59,6 +59,21 @@ COOKIE_SECURE = _env_bool("COOKIE_SECURE", False)
 # Otherwise that header is client supplied and could falsify the audit log.
 TRUST_PROXY = _env_bool("TRUST_PROXY", False)
 
+# ---------------- Google sign in ----------------
+
+# The OAuth client ID from the Google Cloud Console. When it is set, people
+# sign in with their Google account and only administrators may still use a
+# password, so the system stays reachable if Google cannot be. Empty means
+# password sign in for everyone, as before.
+GOOGLE_CLIENT_ID = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
+# Roles that may still sign in with a password once Google is configured.
+PASSWORD_FALLBACK_ROLES = ("admin",)
+
+
+def google_enabled():
+    return bool(GOOGLE_CLIENT_ID)
+
+
 ACCESS_TOKEN_MINUTES = int(os.environ.get("ACCESS_TOKEN_MINUTES") or 15)
 REFRESH_TOKEN_HOURS = int(os.environ.get("REFRESH_TOKEN_HOURS") or 10)
 

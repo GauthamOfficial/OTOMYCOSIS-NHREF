@@ -24,6 +24,11 @@
       <div class="card-body">
         <h1>Sign in</h1>
         <p class="lead">Ear Disease Detection System</p>
+        <div id="login-google" hidden>
+          <div id="login-google-button"></div>
+          <p id="login-google-note" class="login-note">Use the Google account your administrator registered.</p>
+          <p class="login-or"><button type="button" class="textbtn" id="login-password-toggle">Cannot use Google?</button></p>
+        </div>
         <form id="login-form" novalidate>
           <div class="field">
             <label for="login-username">Email address</label>
@@ -610,10 +615,10 @@
         <div class="field"><label>Full name</label><input type="text" name="full_name" autocomplete="off"></div>
         <div class="field"><label>Role</label>
           <select name="role"><option value="clinician">Clinician</option><option value="admin">Administrator</option></select></div>
-        <div class="field"><label>Temporary password</label><input type="text" name="password" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label data-r="password-label">Temporary password</label><input type="text" name="password" autocomplete="off" spellcheck="false"></div>
         <button type="submit" class="btn btn-primary">Add user</button>
       </form>
-      <p class="field-hint" style="margin-top:8px">They sign in with this email address and must choose their own password at first sign in.
+      <p class="field-hint" style="margin-top:8px" data-r="password-hint">They sign in with this email address and must choose their own password at first sign in.
         <button type="button" class="textbtn" data-r="generate">Generate a temporary password</button></p>
       <div class="notice notice-error" data-r="error" role="alert" hidden style="margin-top:10px"></div>
     </div>
