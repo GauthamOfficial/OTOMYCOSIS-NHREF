@@ -219,3 +219,24 @@ def test_an_administrator_can_still_be_given_an_emergency_password(client, admin
 
 def test_a_password_is_still_required_when_google_is_off(client, admin):
     assert add_user(client, admin, "nogoogle@gmail.com").status_code == 400
+
+
+# ---------------- the settings file ----------------
+
+def test_settings_that_are_not_settings_are_reported(tmp_path):
+    from ear_detection import config
+
+    good = tmp_path / "good.env"
+    good.write_text("# a comment\n\nGOOGLE_CLIENT_ID=abc.apps.googleusercontent.com\n",
+                    encoding="utf-8")
+    assert config.env_problems(str(good)) == []
+
+    # How the credentials are labelled in the Google Console, pasted in as is.
+    bad = tmp_path / "bad.env"
+    bad.write_text("DATABASE_URL=x\nClient id = abc.apps.googleusercontent.com\n"
+                   "Client secret = GOCSPX-secret\njust some text\n", encoding="utf-8")
+    problems = config.env_problems(str(bad))
+    assert len(problems) == 3
+    assert "Line 2" in problems[0] and "'Client id'" in problems[0]
+    # A secret in the file is never quoted back in a message or a log.
+    assert "GOCSPX-secret" not in " ".join(problems)

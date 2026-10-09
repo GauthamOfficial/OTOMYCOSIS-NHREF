@@ -74,6 +74,35 @@ def google_enabled():
     return bool(GOOGLE_CLIENT_ID)
 
 
+def env_problems(path=None):
+    """Lines of .env that are not settings and were therefore ignored.
+
+    A setting pasted in as ``Client id = ...`` looks right to a person and is
+    invisible to the program, which then behaves as though it were never set.
+    Values are never included here, since the file holds secrets.
+    """
+    import re
+
+    path = path or os.path.join(BASE_DIR, ".env")
+    problems = []
+    if not os.path.isfile(path):
+        return problems
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        for number, line in enumerate(fh, 1):
+            text = line.strip()
+            if not text or text.startswith("#"):
+                continue
+            name = text.partition("=")[0].strip()
+            if "=" not in text:
+                problems.append("Line %d of .env is not a setting and was ignored: %r"
+                                % (number, text[:30]))
+            elif not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
+                problems.append("Line %d of .env was ignored: %r is not a setting name. Use "
+                                "NAME=value with no spaces around the equals sign."
+                                % (number, name[:30]))
+    return problems
+
+
 ACCESS_TOKEN_MINUTES = int(os.environ.get("ACCESS_TOKEN_MINUTES") or 15)
 REFRESH_TOKEN_HOURS = int(os.environ.get("REFRESH_TOKEN_HOURS") or 10)
 

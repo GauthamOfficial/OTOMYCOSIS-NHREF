@@ -278,16 +278,36 @@ def cmd_unlock(args):
 
 
 def cmd_check(args):
+    from ear_detection import config
     from ear_detection.db import Examination, ModelVersion, Review, User
+
+    problems = config.env_problems()
+    for problem in problems:
+        print("WARNING  " + problem)
+    if problems:
+        print()
 
     app = _app_or_exit()
     with app.app_context():
         active = ModelVersion.query.filter_by(status="active").first()
+        admins = User.query.filter_by(role="admin", is_active=True).all()
         print("Database connection OK")
         print("  users          %d" % User.query.count())
         print("  examinations   %d" % Examination.query.count())
         print("  reviews        %d" % Review.query.count())
         print("  active model   %s" % (active.version if active else "none"))
+        if config.google_enabled():
+            print("  sign in        Google, client ID ending %s" % config.GOOGLE_CLIENT_ID[-28:])
+            unlinked = [u.username for u in User.query.filter_by(is_active=True)
+                        if "@" not in u.username]
+            if unlinked:
+                print("  WARNING        these accounts have no email address, so they cannot "
+                      "use Google: %s" % ", ".join(sorted(unlinked)))
+            print("  emergency      %d administrator account(s) may still use a password: %s"
+                  % (len(admins), ", ".join(sorted(u.username for u in admins))))
+        else:
+            print("  sign in        passwords for everyone (GOOGLE_CLIENT_ID is not set)")
+    return 1 if problems else 0
 
 
 def cmd_shrink_images(args):

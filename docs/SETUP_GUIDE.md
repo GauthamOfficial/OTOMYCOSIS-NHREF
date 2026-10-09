@@ -115,7 +115,7 @@ Run these from a Command Prompt in the project folder:
 
 | Task | Command |
 | --- | --- |
-| Check the database connection | `.venv\Scripts\python.exe scripts\manage.py check` |
+| Check the settings, database and sign in method | `.venv\Scripts\python.exe scripts\manage.py check` |
 | Add a user | `.venv\Scripts\python.exe scripts\manage.py create-user` (asks for an email address) |
 | Reset a password | `.venv\Scripts\python.exe scripts\manage.py reset-password EMAIL` |
 | Unlock an account after failed sign ins | `.venv\Scripts\python.exe scripts\manage.py unlock EMAIL` |
@@ -176,6 +176,14 @@ to issue, remember or reset. Set it up once:
    ```
 
 6. Restart the service. The sign in page now shows **Sign in with Google**.
+
+Paste the setting as one line, exactly `GOOGLE_CLIENT_ID=...`, with no spaces
+around the equals sign. The Console labels the value "Client ID", but a line
+reading `Client ID = ...` is not a setting and is ignored, which leaves the
+sign in page showing a password box. The black service window says which way
+sign in is working each time it starts, and
+`.venv\Scripts\python.exe scripts\manage.py check` reports the same thing
+along with any line of `.env` that could not be read.
 
 There is no client secret in this arrangement. The browser receives a signed
 token from Google and the service checks that signature against Google's

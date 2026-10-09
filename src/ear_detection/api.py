@@ -58,6 +58,17 @@ def create_app(overrides=None):
         log.info("model %s loaded in %.1fs, calibrated=%s",
                  loaded.version, time.time() - started, loaded.meta["calibrated"])
 
+    # A settings file that cannot be read is the kind of fault that otherwise
+    # shows up much later as a feature that simply does nothing.
+    for problem in config.env_problems():
+        log.warning("%s", problem)
+    if config.google_enabled():
+        log.info("sign in: Google, client ID ending %s. Administrators may also use a password.",
+                 config.GOOGLE_CLIENT_ID[-28:])
+    else:
+        log.info("sign in: passwords for everyone. Set GOOGLE_CLIENT_ID in .env to use "
+                 "Sign in with Google.")
+
     app.register_blueprint(exams_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(admin_bp)
