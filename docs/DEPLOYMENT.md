@@ -159,12 +159,25 @@ backups.
 
 ## What is not set up
 
-**Retraining needs the training images.** `Dataset/` is not in git, because
-the images belong to the public datasets they came from. Until that folder and
-`artifacts/manifest.csv` are on the server, the Retrain button reports that it
-cannot run. Everything else, including the daily backtest against surgeon
-reviewed cases, works without it. Copy the folder to `/opt/otoscan/Dataset`
-to enable it, and expect a few gigabytes.
+**Retraining is waiting only on reviewed cases.** `Dataset/` is not in git,
+because the images belong to the public datasets they came from, so it was
+copied to `/opt/otoscan/Dataset` by hand: 4,763 files, 353 MB, every row of
+`artifacts/manifest.csv` accounted for. Retraining then needs 50 surgeon
+reviewed cases, which is the clinical gate, not a technical one.
+
+To replace it from a Windows machine, send it in pieces rather than in one
+stream, because a single long transfer tends to be cut:
+
+```
+find Dataset -type f | split -l 150 -d -a 3 - chunk_
+for c in chunk_*; do tar cf - -T $c | ssh -i KEY ubuntu@SERVER 'tar xf - -C /opt/otoscan'; done
+ssh -i KEY ubuntu@SERVER 'sudo chgrp -R otoscan /opt/otoscan/Dataset && sudo chmod -R g+rX /opt/otoscan/Dataset'
+```
+
+The service account must be able to read it, which is what that last line is
+for. The first retraining run rebuilds the normalised copy of every image
+under `artifacts/normalized/`, which takes some minutes and about a gigabyte;
+later runs reuse it.
 
 **Uploads are capped at 15 MB by the service and 16 MB by Caddy.** Requests
 that reach the server through Vercel pass through Vercel's own limit as well.
