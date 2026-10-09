@@ -11,7 +11,7 @@ internet.
 
 | | Where | What it does |
 | --- | --- | --- |
-| Interface | Vercel | Serves the HTML, CSS and JavaScript, and forwards every `/api` request to the server |
+| Interface | Vercel, `nhref-otoscan.vercel.app` | Serves the HTML, CSS and JavaScript, and forwards every `/api` request to the server |
 | Service | Oracle Cloud, `132.145.62.47` | The API, the model, the database and the image store |
 | Certificate | Caddy on the server | Terminates HTTPS as `132-145-62-47.sslip.io` |
 
@@ -179,12 +179,11 @@ for. The first retraining run rebuilds the normalised copy of every image
 under `artifacts/normalized/`, which takes some minutes and about a gigabyte;
 later runs reuse it.
 
-**Uploads are capped at 15 MB by the service and 16 MB by Caddy.** Requests
-that reach the server through Vercel pass through Vercel's own limit as well.
-If a photograph from a phone is ever refused with a 413 while the same file
-works against the server address directly, that is the limit being hit, and
-the fix is to have the page post the image to the server address instead of
-through Vercel.
+**Uploads are capped at 15 MB by the service and 16 MB by Caddy.** Vercel's
+documented 4.5 MB request body limit applies to its functions, not to a
+rewrite like this one: a 12 MB photograph was accepted through
+`nhref-otoscan.vercel.app` and analysed normally. Anything over 16 MB is
+refused by Caddy with a 413 before the service reads it.
 
 **There is no off machine log retention.** The service and Caddy both log to
 the journal, which rotates. The audit log of who did what is in the database
