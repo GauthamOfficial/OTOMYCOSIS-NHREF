@@ -107,7 +107,9 @@ which is the safest arrangement. To serve a clinic network:
 4. Have the proxy set the `X-Real-IP` header and set `TRUST_PROXY=true` in
    `.env`, so the audit log records each user's real address.
 
-Do not expose it to the internet.
+Reaching it from outside the hospital network is a different arrangement, with
+its own guide: see [DEPLOYMENT.md](DEPLOYMENT.md). Do not simply open this
+computer to the internet.
 
 ## 8. Maintenance commands
 

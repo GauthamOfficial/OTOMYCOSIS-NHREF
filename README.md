@@ -45,6 +45,9 @@ on Windows:
 3. Double click **`start.bat`** and sign in at <http://localhost:5000>.
 4. Under **Admin**, add an account for each surgeon.
 
+To install it on a Linux server instead, with the interface published
+separately, read the **[Deployment Guide](docs/DEPLOYMENT.md)**.
+
 How to use the system day to day is in the **[User Guide](docs/USER_GUIDE.md)**.
 
 ## The clinical workflow
@@ -333,7 +336,7 @@ models/ear_classifier.keras The model shipped as version 2.0.0
 artifacts/                  Label order, split manifest, calibration, evaluation
 scripts/                    manage, prepare_dataset, train, calibrate, retrain, backtest, report
 tests/                      Authentication, examinations, administration, model, imaging, report
-docs/                       Setup guide, user guide and validation report
+docs/                       Setup, deployment and user guides, and the validation report
 notebooks/                  Experiments from the original prototype (historical)
 ```
 

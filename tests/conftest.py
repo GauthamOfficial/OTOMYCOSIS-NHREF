@@ -26,6 +26,10 @@ os.environ["BACKTEST_ENABLED"] = "0"
 # Password sign in by default, whatever the real .env says. The Google tests
 # switch it on for themselves.
 os.environ["GOOGLE_CLIENT_ID"] = ""
+# No trusted reverse proxy, so the test that a forged X-Real-IP never reaches
+# the audit log tests what it says. A deployed server sets this to true in its
+# own .env, which would otherwise make that test pass the forgery through.
+os.environ["TRUST_PROXY"] = "0"
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 SAMPLE = os.path.join(ROOT, "docs", "images", "normalear.JPG")
