@@ -35,17 +35,35 @@ def _active_admins():
 
 # ---------------- users ----------------
 
+def _users_with_records():
+    """Ids of users who appear anywhere in the clinical or model record.
+
+    Their account cannot be deleted, because deleting it would detach that
+    work from the person who did it.
+    """
+    owners = set()
+    for column in (Patient.created_by_id, Examination.created_by_id, Review.reviewer_id,
+                   ModelVersion.approved_by_id, TrainingJob.started_by_id,
+                   BacktestRun.started_by_id):
+        owners.update(i for (i,) in db.session.query(column).filter(column.isnot(None)).distinct())
+    return owners
+
+
 @admin_bp.route("/users")
 @login_required("admin")
 def list_users():
     users = User.query.order_by(User.full_name).all()
     now = utcnow()
+    with_records = _users_with_records()
 
     def locked(user):
         until = as_utc(user.locked_until)
         return until is not None and until > now
 
-    return jsonify({"items": [u.to_dict() | {"locked": locked(u)} for u in users]})
+    return jsonify({"items": [
+        u.to_dict() | {"locked": locked(u),
+                       "deletable": u.id not in with_records and u.id != g.user.id}
+        for u in users]})
 
 
 @admin_bp.route("/users", methods=["POST"])
@@ -80,7 +98,8 @@ def create_user():
         must_change = True
 
     user = User(username=username, full_name=full_name, role=role,
-                password_hash=hash_password(password), must_change_password=must_change)
+                password_hash=hash_password(password), must_change_password=must_change,
+                password_set=must_change)
     db.session.add(user)
     db.session.flush()
     record("user_created", user=g.user, entity="user", entity_id=user.id,
@@ -154,12 +173,49 @@ def reset_password(user_id):
         return _error(problem, field="password")
     user.password_hash = hash_password(password)
     user.must_change_password = True
+    user.password_set = True
     user.failed_logins = 0
     user.locked_until = None
     user.token_version += 1
     record("password_reset", user=g.user, entity="user", entity_id=user.id, ip=client_ip())
     db.session.commit()
     return jsonify({"user": user.to_dict()})
+
+
+@admin_bp.route("/users/<int:user_id>", methods=["DELETE"])
+@login_required("admin")
+def delete_user(user_id):
+    """Remove an account that has never been used.
+
+    An account that has screened a patient, reviewed a finding or approved a
+    model is never deleted: those records name the person who did the work,
+    and that attribution is the point of keeping them. Such an account is
+    deactivated instead, which ends its access immediately while the history
+    stays readable.
+    """
+    user = db.session.get(User, user_id)
+    if user is None:
+        return _error("User not found.", 404)
+    if user.id == g.user.id:
+        return _error("You cannot delete your own account.")
+    if user.role == "admin" and user.is_active and _active_admins() <= 1:
+        return _error("At least one active administrator is required.")
+    if user.id in _users_with_records():
+        return _error("This account has examinations, reviews or approvals recorded against "
+                      "it, which must keep naming the person who made them. Deactivate the "
+                      "account instead: that ends its access at once.", 409)
+
+    details = {"username": user.username, "full_name": user.full_name, "role": user.role}
+    # Their own sign in history stays in the log, no longer pointing at a row
+    # that has gone. The deletion below records who they were.
+    detached = AuditEvent.query.filter_by(user_id=user.id).update(
+        {"user_id": None}, synchronize_session=False)
+    details["audit_entries_detached"] = detached
+    db.session.delete(user)
+    record("user_deleted", user=g.user, entity="user", entity_id=user_id, detail=details,
+           ip=client_ip())
+    db.session.commit()
+    return jsonify({"deleted": details})
 
 
 # ---------------- models and retraining ----------------

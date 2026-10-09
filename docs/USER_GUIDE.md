@@ -190,10 +190,20 @@ In the Users table you can:
   and review; administrators can also manage users, models, records and the
   audit log. You cannot change your own role.
 - **Deactivate or activate** an account. Deactivating signs the person out
-  immediately and keeps their past examinations and reviews.
-- **Reset a password** when someone is locked out or has forgotten theirs.
+  immediately and keeps their past examinations and reviews. This is the
+  normal way to remove someone who has left.
+- **Set or reset a password.** With Google sign in, clinicians have no
+  password, so no button appears on their row. Administrators keep one as
+  the emergency way in if Google cannot be reached. An administrator who
+  has never been given one is marked **No emergency password**.
+- **Delete** an account outright. This appears only on accounts with
+  nothing recorded against them, such as one added with the wrong address.
+  An account that has screened a patient, reviewed a finding or approved a
+  model cannot be deleted, because those records name the person who did
+  the work; deactivate it instead. A deleted account's sign in history
+  stays in the audit log, and the deletion is recorded there too.
 
-You cannot deactivate yourself or remove the last administrator.
+You cannot deactivate or delete yourself, or remove the last administrator.
 
 ### Model and retraining
 

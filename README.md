@@ -287,6 +287,7 @@ All endpoints except health and sign in require `Authorization: Bearer <token>`.
 | `POST` | `/api/v1/backtests` | Start a backtest now. Administrators only. |
 | `GET` | `/api/v1/model` | Model version, threshold, test results, classes. |
 | `GET` | `/api/v1/health` | Service status. |
+| `DELETE` | `/api/v1/admin/users/<id>` | Delete an account that has no records attached. |
 | | `/api/v1/admin/...` | Users (added and found by email address), model versions, retraining, approval, records (including clearing all) and the audit log (including clearing it). Administrators only. |
 
 ## Retraining from scratch

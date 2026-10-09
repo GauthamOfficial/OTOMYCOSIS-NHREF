@@ -290,7 +290,8 @@ def cmd_check(args):
     app = _app_or_exit()
     with app.app_context():
         active = ModelVersion.query.filter_by(status="active").first()
-        admins = User.query.filter_by(role="admin", is_active=True).all()
+        admins = [u for u in User.query.filter_by(role="admin", is_active=True)
+                  if u.has_password]
         print("Database connection OK")
         print("  users          %d" % User.query.count())
         print("  examinations   %d" % Examination.query.count())
@@ -303,8 +304,12 @@ def cmd_check(args):
             if unlinked:
                 print("  WARNING        these accounts have no email address, so they cannot "
                       "use Google: %s" % ", ".join(sorted(unlinked)))
-            print("  emergency      %d administrator account(s) may still use a password: %s"
-                  % (len(admins), ", ".join(sorted(u.username for u in admins))))
+            if admins:
+                print("  emergency      %d administrator account(s) can sign in without Google: "
+                      "%s" % (len(admins), ", ".join(sorted(u.username for u in admins))))
+            else:
+                print("  WARNING        no administrator has a password, so nobody can sign in "
+                      "if Google cannot be reached. Set one with reset-password.")
         else:
             print("  sign in        passwords for everyone (GOOGLE_CLIENT_ID is not set)")
     return 1 if problems else 0

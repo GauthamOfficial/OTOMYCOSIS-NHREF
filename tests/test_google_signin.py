@@ -221,6 +221,30 @@ def test_a_password_is_still_required_when_google_is_off(client, admin):
     assert add_user(client, admin, "nogoogle@gmail.com").status_code == 400
 
 
+def test_the_listing_says_who_has_a_password_to_fall_back_on(client, admin, google):
+    add_user(client, admin, "google.only@gmail.com")
+    add_user(client, admin, "with.password@gmail.com", role="admin",
+             password="Fallback-Pass-2026")
+
+    users = {u["email"]: u for u in
+             client.get("/api/v1/admin/users", headers=admin).get_json()["items"]}
+    # Nothing to reset for a Google only account: nobody was ever given one.
+    assert users["google.only@gmail.com"]["has_password"] is False
+    assert users["with.password@gmail.com"]["has_password"] is True
+    # Accounts from before Google sign in keep theirs.
+    assert users[ADMIN[0]]["has_password"] is True
+
+
+def test_setting_a_password_later_makes_the_fallback_real(client, admin, google):
+    user = add_user(client, admin, "later@gmail.com", role="admin").get_json()["user"]
+    assert user["has_password"] is False
+    reset = client.post("/api/v1/admin/users/%d/reset-password" % user["id"],
+                        json={"password": "Added-Later-2026"}, headers=admin)
+    assert reset.get_json()["user"]["has_password"] is True
+    assert client.post("/api/v1/auth/login", json={"email": "later@gmail.com",
+                                                   "password": "Added-Later-2026"}).status_code == 200
+
+
 # ---------------- the settings file ----------------
 
 def test_settings_that_are_not_settings_are_reported(tmp_path):

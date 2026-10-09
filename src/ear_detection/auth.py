@@ -377,6 +377,7 @@ def change_password():
 
     user.password_hash = hash_password(new)
     user.must_change_password = False
+    user.password_set = True
     user.password_changed_at = utcnow()
     user.token_version += 1
     record("password_changed", user=user, ip=client_ip())

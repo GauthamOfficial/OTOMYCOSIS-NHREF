@@ -47,6 +47,11 @@ class User(db.Model):
     full_name = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(16), nullable=False, default="clinician")
     password_hash = db.Column(db.String(255), nullable=False)
+    # Whether a password anybody knows has been set. An account created for
+    # Google sign in is given an unguessable one that is never shared, so it
+    # cannot be signed in with. Null means an account from before this was
+    # recorded, which had a real password.
+    password_set = db.Column(db.Boolean)
     # Google's permanent identifier for the account that signed in, recorded
     # the first time they do. An email address can in principle be reassigned
     # to a different Google account; this is what makes sure the person behind
@@ -64,10 +69,16 @@ class User(db.Model):
     token_version = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
+    @property
+    def has_password(self):
+        """Whether this person could sign in with a password at all."""
+        return self.password_set is not False
+
     def to_dict(self):
         return {
             "id": self.id,
             "username": self.username,
+            "has_password": self.has_password,
             # What the interface shows and asks for at sign in.
             "email": self.username,
             "full_name": self.full_name,

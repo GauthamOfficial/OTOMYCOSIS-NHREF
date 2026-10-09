@@ -107,12 +107,6 @@
     }
 
     form.elements.role.addEventListener("change", passwordVisibility);
-    App.request("GET", "/auth/config").then(function (conf) {
-      googleOn = conf.google_enabled;
-      if (!googleOn) { return; }
-      r(panel, "password-label").textContent = "Temporary password (optional)";
-      passwordVisibility();
-    }).catch(function () {});
 
     r(panel, "generate").addEventListener("click", function () {
       form.elements.password.value = randomPassword();
@@ -170,6 +164,11 @@
           if (u.locked) { statusCell.appendChild(el("span", "sub", "Locked after failed sign ins")); }
           if (u.must_change_password && u.is_active) { statusCell.appendChild(el("span", "sub", "Temporary password")); }
           if (u.google_linked) { statusCell.appendChild(el("span", "sub", "Google account linked")); }
+          /* An administrator with no password is one who cannot get in
+             during a Google outage, which is worth seeing at a glance. */
+          if (googleOn && u.role === "admin" && u.is_active && !u.has_password) {
+            statusCell.appendChild(el("span", "sub", "No emergency password"));
+          }
           tr.appendChild(statusCell);
 
           tr.appendChild(el("td", "muted", u.last_login_at ? App.formatDate(u.last_login_at) : "Never"));
@@ -188,24 +187,56 @@
             });
             actions.appendChild(toggle);
           }
-          var reset = el("button", "btn btn-small", "Reset password");
-          reset.type = "button";
-          reset.style.marginLeft = "6px";
-          reset.addEventListener("click", function () {
-            var temp = randomPassword();
-            if (!window.confirm("Set a new temporary password for " + u.full_name + "?\n\n" + temp +
-                "\n\nWrite it down and give it to them in person. They must change it at next sign in.")) { return; }
-            App.request("POST", "/admin/users/" + u.id + "/reset-password", { json: { password: temp } })
-              .then(function () { App.toast("Password reset for " + u.full_name + "."); load(); })
-              .catch(function (err) { App.toast(err.message, true); });
-          });
-          actions.appendChild(reset);
+          /* With Google sign in a clinician has no password to reset. An
+             administrator's is the emergency way in, so it stays. */
+          if (!googleOn || u.role === "admin") {
+            var emergency = googleOn && !u.has_password;
+            var reset = el("button", "btn btn-small",
+              emergency ? "Set emergency password" : "Reset password");
+            reset.type = "button";
+            reset.style.marginLeft = "6px";
+            reset.addEventListener("click", function () {
+              var temp = randomPassword();
+              if (!window.confirm((googleOn
+                  ? "Set an emergency password for " + u.full_name +
+                    "?\n\nThis is only for signing in when Google cannot be reached.\n\n"
+                  : "Set a new temporary password for " + u.full_name + "?\n\n") + temp +
+                  "\n\nWrite it down and give it to them in person. They must change it at next sign in.")) { return; }
+              App.request("POST", "/admin/users/" + u.id + "/reset-password", { json: { password: temp } })
+                .then(function () { App.toast("Password set for " + u.full_name + "."); load(); })
+                .catch(function (err) { App.toast(err.message, true); });
+            });
+            actions.appendChild(reset);
+          }
+
+          /* Only an account with nothing recorded against it can go. */
+          if (u.deletable) {
+            var remove = el("button", "btn btn-small btn-danger", "Delete");
+            remove.type = "button";
+            remove.style.marginLeft = "6px";
+            remove.addEventListener("click", function () {
+              if (!window.confirm("Delete the account for " + u.full_name + " (" + u.email +
+                  ")?\n\nThis cannot be undone. Their sign in history stays in the audit log.")) { return; }
+              App.request("DELETE", "/admin/users/" + u.id)
+                .then(function () { App.toast("Deleted the account for " + u.full_name + "."); load(); })
+                .catch(function (err) { App.toast(err.message, true); });
+            });
+            actions.appendChild(remove);
+          }
           tr.appendChild(actions);
           body.appendChild(tr);
         });
       }).catch(function (err) { App.toast(err.message, true); });
     }
-    load();
+    /* The table is drawn once the sign in method is known, so rows do not
+       change under the reader a moment after they appear. */
+    App.request("GET", "/auth/config").then(function (conf) {
+      googleOn = conf.google_enabled;
+      if (googleOn) {
+        r(panel, "password-label").textContent = "Temporary password (optional)";
+        passwordVisibility();
+      }
+    }).catch(function () {}).then(load);
   }
 
   /* ======================= Models and retraining ======================= */
@@ -446,6 +477,7 @@
     login: "Signed in", login_failed: "Failed sign in", account_locked: "Account locked",
     password_changed: "Changed password", password_reset: "Password reset",
     user_created: "Created user", user_updated: "Updated user",
+    user_deleted: "Deleted user", google_linked: "Linked Google account",
     examination_created: "Analysed examination", examination_reviewed: "Reviewed examination",
     retraining_started: "Started retraining", model_approved: "Approved model",
     model_rejected: "Rejected model", examination_deleted: "Deleted examination",

@@ -77,6 +77,76 @@ def test_clinicians_cannot_manage_accounts(client, clinician):
     assert add(client, clinician, "nope@gmail.com").status_code == 403
 
 
+# ---------------- deleting an account ----------------
+
+def listed(client, admin, email):
+    users = client.get("/api/v1/admin/users", headers=admin).get_json()["items"]
+    return next((u for u in users if u["email"] == email), None)
+
+
+def test_an_unused_account_can_be_deleted(client, admin):
+    user = add(client, admin, "never.used@gmail.com").get_json()["user"]
+    assert listed(client, admin, "never.used@gmail.com")["deletable"] is True
+
+    removed = client.delete("/api/v1/admin/users/%d" % user["id"], headers=admin)
+    assert removed.status_code == 200
+    assert removed.get_json()["deleted"]["username"] == "never.used@gmail.com"
+    assert listed(client, admin, "never.used@gmail.com") is None
+
+    audit = client.get("/api/v1/admin/audit", headers=admin).get_json()["items"]
+    entry = next(e for e in audit if e["action"] == "user_deleted")
+    assert entry["detail"]["username"] == "never.used@gmail.com"
+    assert entry["detail"]["role"] == "clinician"
+
+
+def test_an_account_with_clinical_records_is_kept(app, client, admin):
+    from conftest import examination, login
+
+    user = add(client, admin, "has.worked@gmail.com", password="Worker-Pass-2026").get_json()["user"]
+    worker = login(client, "has.worked@gmail.com", "Worker-Pass-2026")
+    client.post("/api/v1/auth/password", headers=worker,
+                json={"current_password": "Worker-Pass-2026", "new_password": "Worker-Own-2026"})
+    worker = login(client, "has.worked@gmail.com", "Worker-Own-2026")
+    assert examination(client, worker, record_no="NHR-KEEPUSER").status_code == 201
+
+    assert listed(client, admin, "has.worked@gmail.com")["deletable"] is False
+    refused = client.delete("/api/v1/admin/users/%d" % user["id"], headers=admin)
+    assert refused.status_code == 409
+    assert "Deactivate the account instead" in refused.get_json()["error"]
+    # Still there, and still able to be shut out the proper way.
+    assert client.patch("/api/v1/admin/users/%d" % user["id"], json={"is_active": False},
+                        headers=admin).status_code == 200
+
+
+def test_sign_in_history_outlives_the_account(app, client, admin):
+    user = add(client, admin, "brief@gmail.com", password="Brief-Pass-2026").get_json()["user"]
+    client.post("/api/v1/auth/login", json={"email": "brief@gmail.com",
+                                            "password": "Brief-Pass-2026"})
+    before = client.get("/api/v1/admin/audit?limit=200", headers=admin).get_json()["total"]
+
+    deleted = client.delete("/api/v1/admin/users/%d" % user["id"], headers=admin).get_json()
+    assert deleted["deleted"]["audit_entries_detached"] >= 1
+    after = client.get("/api/v1/admin/audit?limit=200", headers=admin).get_json()
+    # Nothing was removed from the log; one entry was added for the deletion.
+    assert after["total"] == before + 1
+
+
+def test_you_cannot_delete_yourself_or_the_last_administrator(app, client, admin):
+    from ear_detection.db import User
+
+    with app.app_context():
+        me = User.query.filter_by(username=ADMIN[0]).one().id
+    assert client.delete("/api/v1/admin/users/%d" % me, headers=admin).status_code == 400
+    assert listed(client, admin, ADMIN[0])["deletable"] is False
+
+
+def test_clinicians_cannot_delete_accounts(client, admin, clinician):
+    user = add(client, admin, "target@gmail.com").get_json()["user"]
+    assert client.delete("/api/v1/admin/users/%d" % user["id"],
+                         headers=clinician).status_code == 403
+    assert client.delete("/api/v1/admin/users/999999", headers=admin).status_code == 404
+
+
 # ---------------- clearing the audit log ----------------
 
 def events(client, admin):
