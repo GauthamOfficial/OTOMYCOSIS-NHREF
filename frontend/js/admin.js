@@ -166,7 +166,10 @@
           if (u.google_linked) { statusCell.appendChild(el("span", "sub", "Google account linked")); }
           /* An administrator with no password is one who cannot get in
              during a Google outage, which is worth seeing at a glance. */
-          if (googleOn && u.role === "admin" && u.is_active && !u.has_password) {
+          /* Strictly false, never merely absent: a service still running an
+             older version does not send this, and guessing would claim an
+             administrator has no way in when they do. */
+          if (googleOn && u.role === "admin" && u.is_active && u.has_password === false) {
             statusCell.appendChild(el("span", "sub", "No emergency password"));
           }
           tr.appendChild(statusCell);
@@ -190,7 +193,7 @@
           /* With Google sign in a clinician has no password to reset. An
              administrator's is the emergency way in, so it stays. */
           if (!googleOn || u.role === "admin") {
-            var emergency = googleOn && !u.has_password;
+            var emergency = googleOn && u.has_password === false;
             var reset = el("button", "btn btn-small",
               emergency ? "Set emergency password" : "Reset password");
             reset.type = "button";
