@@ -228,6 +228,15 @@ uploaded filename (clinic filenames often contain patient names), and are only
 served to signed in users. Uploaded filenames are never logged or stored.
 Results are marked `no-store` so browsers do not cache them.
 
+**Image size.** Each stored patient image is at most 200 KB (set by
+`STORED_IMAGE_MAX_KB`). An image within the limit is kept exactly as uploaded.
+A larger one is re-encoded as JPEG, lowering quality before resolution, and
+the model analyses that stored version, so the record, the daily backtest and
+retraining all use the same image. Re-encoding also drops embedded camera
+metadata. Duplicate detection still uses a hash of the file as uploaded. On 80
+test images enlarged to 2400 by 1800 pixels, compressing to 200 KB changed no
+finding and no referral decision; most kept their full resolution.
+
 **Accounts.** Passwords are hashed with scrypt and must be at least ten
 characters mixing letters with numbers or symbols. New accounts receive a
 temporary password that must be changed at first sign in. Five failed sign ins
@@ -312,7 +321,7 @@ src/ear_detection/
     imaging.py              Field of view normalisation, shared with training
     registry.py             Model versions and hot swapping
     retraining.py           Starting and monitoring retraining runs
-    storage.py              Patient image storage
+    storage.py              Patient image storage and the 200 KB size limit
     reporting.py            Validation report rendering
     config.py               Settings, class names and descriptions
 frontend/                   Web interface and the generated report page

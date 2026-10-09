@@ -21,7 +21,9 @@ five wrong passwords the account locks for 15 minutes.
    examined. For a returning patient, the system recognises the record number
    and fills in the sex. Names are never entered or stored.
 2. **Image.** Either drop an image file onto the page, or choose **Camera or
-   endoscope** to capture one live (see below).
+   endoscope** to capture one live (see below). Files up to 15 MB are
+   accepted. Each image is stored at 200 KB or less; a larger one is
+   compressed before it is analysed, without changing what the model finds.
 3. **Run Analysis.** The result appears in a few seconds and is saved to the
    patient's record.
 4. **Review.** Confirm or correct the finding (see below).

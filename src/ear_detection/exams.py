@@ -157,12 +157,19 @@ def create_examination():
                                  % (record_no, patient.sex),
                         "field": "sex"}), 409
 
+    # Fit the image to the storage limit first, then analyse what is kept, so
+    # the stored image is exactly the one the result was based on.
+    upload_sha256 = storage.sha256(raw)
+    stored, extension, image = storage.fit_for_storage(raw, extension, image)
+    del raw
+
     active = registry().current()
     result, extras = analysis.analyse(active.classifier, active.meta, image)
     width, height = image.size
     del image
 
-    paths = storage.save_examination(raw, extension, extras["model_view"], extras["overlay"])
+    paths = storage.save_examination(stored, extension, extras["model_view"], extras["overlay"],
+                                     upload_sha256)
     duplicate = Examination.query.filter_by(image_sha256=paths["image_sha256"]).first()
 
     try:

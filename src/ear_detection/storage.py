@@ -3,7 +3,11 @@
 Images live under STORAGE_DIR, outside the web root, and are only ever served
 through an authenticated endpoint. Files are named by a random token, never by
 the uploaded filename, which in clinics often contains the patient's name.
-The original upload is kept byte for byte so it can be used for retraining.
+
+Each patient image is kept at no more than STORED_IMAGE_MAX_BYTES (200 KB by
+default). An upload within the limit is kept byte for byte; a larger one is
+re-encoded to fit before it is analysed, so the stored image is exactly the
+one the result, the backtest and retraining are based on.
 """
 
 import hashlib
@@ -39,10 +43,47 @@ def _png(array):
     return buffer.getvalue()
 
 
-def save_examination(raw_bytes, extension, model_view, overlay):
-    """Write the original upload and its derived images.
+JPEG_QUALITIES = (92, 85, 78, 70)
+SHRINK_STEP = 0.8
 
-    Returns the stored relative paths and the SHA 256 of the original.
+
+def fit_for_storage(raw_bytes, extension, image, limit=None):
+    """The bytes to keep for an image, at most ``limit`` bytes.
+
+    An image within the limit is kept exactly as received. A larger one is
+    re-encoded as JPEG at full resolution with gradually lower quality, and
+    only if that is not enough at gradually smaller sizes, stopping at the
+    first version that fits. Detail matters more than file size, so
+    resolution is the last thing given up. Re-encoding also drops embedded
+    metadata such as camera details.
+
+    ``image`` is the upright RGB image decoded from ``raw_bytes``. Returns the
+    bytes, their file extension and the image they decode to.
+    """
+    limit = limit or config.STORED_IMAGE_MAX_BYTES
+    if len(raw_bytes) <= limit:
+        return raw_bytes, extension, image
+
+    width, height = image.size
+    scale = 1.0
+    while True:
+        size = (max(1, int(round(width * scale))), max(1, int(round(height * scale))))
+        candidate = image if scale == 1.0 else image.resize(size, Image.LANCZOS)
+        for quality in JPEG_QUALITIES:
+            buffer = io.BytesIO()
+            candidate.save(buffer, format="JPEG", quality=quality, optimize=True)
+            data = buffer.getvalue()
+            if len(data) <= limit:
+                return data, ".jpg", Image.open(io.BytesIO(data)).convert("RGB")
+        scale *= SHRINK_STEP
+
+
+def save_examination(raw_bytes, extension, model_view, overlay, upload_sha256):
+    """Write the stored image and its derived images.
+
+    ``upload_sha256`` is the hash of the file as uploaded, before any
+    re-encoding, so duplicate uploads and copies of dataset images are still
+    recognised. Returns the stored relative paths and that hash.
     """
     now = datetime.now(timezone.utc)
     folder = "%04d/%02d" % (now.year, now.month)
@@ -61,8 +102,12 @@ def save_examination(raw_bytes, extension, model_view, overlay):
         remove(paths.values())
         raise
 
-    paths["image_sha256"] = hashlib.sha256(raw_bytes).hexdigest()
+    paths["image_sha256"] = upload_sha256
     return paths
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
 
 
 def remove(relative_paths):

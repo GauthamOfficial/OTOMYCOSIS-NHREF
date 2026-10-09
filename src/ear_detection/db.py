@@ -124,10 +124,13 @@ class Examination(db.Model):
     age_years = db.Column(db.Integer, nullable=False)
     notes = db.Column(db.Text)
 
-    # Paths relative to STORAGE_DIR.
+    # Paths relative to STORAGE_DIR. The stored image is at most
+    # STORED_IMAGE_MAX_BYTES; width and height are those of the stored image.
     image_path = db.Column(db.String(255), nullable=False)
     model_view_path = db.Column(db.String(255))
     overlay_path = db.Column(db.String(255))
+    # Hash of the file as uploaded, before any re-encoding, so duplicates and
+    # copies of dataset images are recognised.
     image_sha256 = db.Column(db.String(64), index=True)
     image_width = db.Column(db.Integer)
     image_height = db.Column(db.Integer)

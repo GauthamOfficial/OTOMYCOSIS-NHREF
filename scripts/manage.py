@@ -6,6 +6,7 @@
     python scripts/manage.py reset-password   set a new temporary password
     python scripts/manage.py unlock           clear a sign in lockout
     python scripts/manage.py check            test the database connection
+    python scripts/manage.py shrink-images    bring stored images within the size limit
 
 ``setup`` connects to PostgreSQL once as the superuser to create a dedicated
 database and a login role that owns only that database. The service itself
@@ -279,6 +280,56 @@ def cmd_check(args):
         print("  active model   %s" % (active.version if active else "none"))
 
 
+def cmd_shrink_images(args):
+    """Bring patient images stored before the size limit within it.
+
+    Each image over the limit is re-encoded exactly as a new upload would be.
+    Results, reviews and the upload hash are left as they are; only the
+    stored file, and its recorded width and height, change.
+    """
+    from ear_detection import config, imaging, storage
+    from ear_detection.db import Examination, db
+
+    limit = config.STORED_IMAGE_MAX_BYTES
+    app = _app_or_exit()
+    with app.app_context():
+        oversized = []
+        for exam in Examination.query.order_by(Examination.id).all():
+            path = storage.absolute(exam.image_path)
+            if os.path.isfile(path) and os.path.getsize(path) > limit:
+                oversized.append((exam, path, os.path.getsize(path)))
+        before = sum(size for _, _, size in oversized)
+        print("%d stored images are over %d KB, %.1f MB in total."
+              % (len(oversized), limit // 1024, before / 1048576.0))
+        if not oversized or args.dry_run:
+            return
+        if not args.yes and ask("Re-encode them now? This cannot be undone (yes/no)", "no") != "yes":
+            print("Nothing changed.")
+            return
+
+        after = 0
+        for exam, path, _ in oversized:
+            with open(path, "rb") as fh:
+                raw = fh.read()
+            data, extension, image = storage.fit_for_storage(
+                raw, os.path.splitext(path)[1].lower(), imaging.open_image(raw))
+            new_relative = os.path.splitext(exam.image_path)[0] + extension
+            same_file = new_relative == exam.image_path
+            target = storage.absolute(new_relative) + (".tmp" if same_file else "")
+            with open(target, "wb") as fh:
+                fh.write(data)
+            exam.image_path = new_relative
+            exam.image_width, exam.image_height = image.size
+            db.session.commit()
+            # The database points at the new file before the old one goes.
+            if same_file:
+                os.replace(target, path)
+            else:
+                os.remove(path)
+            after += len(data)
+        print("Done. %d images now take %.1f MB." % (len(oversized), after / 1048576.0))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -309,6 +360,12 @@ def main():
     unlock.set_defaults(func=cmd_unlock)
 
     sub.add_parser("check", help="test the database connection").set_defaults(func=cmd_check)
+
+    shrink = sub.add_parser("shrink-images",
+                            help="re-encode stored patient images that are over the size limit")
+    shrink.add_argument("--dry-run", action="store_true", help="only report what would change")
+    shrink.add_argument("--yes", action="store_true", help="do not ask for confirmation")
+    shrink.set_defaults(func=cmd_shrink_images)
 
     args = parser.parse_args()
     args.func(args)

@@ -79,7 +79,9 @@ Two things together make up the record, and both must be backed up:
 
 1. **The database**: patients, examinations, results and reviews.
 2. **The image store**: the `storage` folder in the project, or wherever
-   `STORAGE_DIR` points.
+   `STORAGE_DIR` points. Each patient image is stored at 200 KB or less, so
+   allow roughly 300 KB per examination including the derived images, about
+   3 GB for 10,000 examinations.
 
 A database backup, run from a Command Prompt:
 
@@ -115,11 +117,18 @@ Run these from a Command Prompt in the project folder:
 | Add a user | `.venv\Scripts\python.exe scripts\manage.py create-user` |
 | Reset a password | `.venv\Scripts\python.exe scripts\manage.py reset-password USERNAME` |
 | Unlock an account after failed sign ins | `.venv\Scripts\python.exe scripts\manage.py unlock USERNAME` |
+| Bring images stored by an earlier version within 200 KB | `.venv\Scripts\python.exe scripts\manage.py shrink-images` |
 | Run a backtest now | `.venv\Scripts\python.exe scripts\backtest.py` |
 | Run the test suite | `.venv\Scripts\python.exe -m pytest` |
 
 If every administrator is locked out, `reset-password` works without signing
 in.
+
+`shrink-images` is only needed once, for images stored before the 200 KB limit
+was introduced. Run it with `--dry-run` first to see how many images and how
+much space are involved. It re-encodes those images exactly as a new upload
+would be and leaves results and reviews unchanged. Back up the image store
+before running it, since the original files are replaced.
 
 ## 9. Cameras and endoscopes
 

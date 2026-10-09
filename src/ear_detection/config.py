@@ -89,6 +89,10 @@ BACKTEST_MAX_AGREEMENT_DROP = float(os.environ.get("BACKTEST_MAX_AGREEMENT_DROP"
 # ---------------- uploads ----------------
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+# Largest file kept for a patient image. Larger uploads are re-encoded as JPEG
+# to fit (see storage.fit_for_storage). Never below 20 KB, which would force
+# images too small to be useful.
+STORED_IMAGE_MAX_BYTES = max(20, int(os.environ.get("STORED_IMAGE_MAX_KB") or 200)) * 1024
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 MIN_IMAGE_SIDE = 128
 
