@@ -170,10 +170,15 @@ by the person's email address, a Gmail address or a hospital one, which is
 what they type to sign in. There is no separate username to invent or
 remember.
 
-Fill in **Email address**, **Full name** and **Role**, then either type a
-temporary password or click **Generate a temporary password**. Give that
-password to them in person; they must replace it with their own at first sign
-in.
+Fill in **Email address**, **Full name** and **Role**, then click **Add
+user**. Clinicians need no password at all: there is no password box for
+them, because they sign in with Google.
+
+Choosing **Administrator** reveals a **Temporary password** box. Fill it in,
+or click **Generate a temporary password**. That password is the emergency
+way in if Google cannot be reached, so give it to them in person and keep a
+copy somewhere safe offline. It can be left empty, but then that
+administrator has no way in during an outage.
 
 In the Users table you can:
 

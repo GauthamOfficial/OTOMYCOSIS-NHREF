@@ -1215,6 +1215,8 @@ body {
 }
 
 .inline-form .field { margin: 0; }
+/* When a field is hidden, so the remaining ones keep their proportions. */
+.inline-form.three-fields { grid-template-columns: repeat(3, minmax(0, 1fr)) auto; }
 
 .log {
   max-height: 260px;

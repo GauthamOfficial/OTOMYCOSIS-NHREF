@@ -88,17 +88,31 @@
     App.mount(panel, "tpl-admin-users");
     var form = r(panel, "add-user");
 
-    /* With Google sign in, clinicians need no password at all, and an
-       administrator's password is only the emergency way in. */
+    /* With Google sign in, clinicians need no password at all, so the box is
+       only there for administrators, whose password is the emergency way in
+       if Google cannot be reached. */
+    var googleOn = false;
+
+    function passwordVisibility() {
+      if (!googleOn) { return; }
+      var forAdmin = form.elements.role.value === "admin";
+      r(panel, "password-field").hidden = !forAdmin;
+      r(panel, "generate").hidden = !forAdmin;
+      form.classList.toggle("three-fields", !forAdmin);
+      /* Never submit a password the person can no longer see. */
+      if (!forAdmin) { form.elements.password.value = ""; }
+      r(panel, "password-hint").textContent = forAdmin
+        ? "Administrators sign in with Google too. Give them a password as well: it is the "
+          + "only way in if Google cannot be reached."
+        : "They sign in with this Google account. No password is needed.";
+    }
+
+    form.elements.role.addEventListener("change", passwordVisibility);
     App.request("GET", "/auth/config").then(function (conf) {
-      if (!conf.google_enabled) { return; }
+      googleOn = conf.google_enabled;
+      if (!googleOn) { return; }
       r(panel, "password-label").textContent = "Temporary password (optional)";
-      var hint = r(panel, "password-hint");
-      hint.insertBefore(document.createTextNode(
-        "They sign in with this Google account. Leave the password empty for clinicians. " +
-        "Give administrators one as well: it is the only way in if Google cannot be reached. "),
-        hint.firstChild);
-      hint.removeChild(hint.childNodes[1]);
+      passwordVisibility();
     }).catch(function () {});
 
     r(panel, "generate").addEventListener("click", function () {
@@ -116,8 +130,11 @@
       if (!payload.password) { delete payload.password; }
       App.request("POST", "/admin/users", { json: payload }).then(function (data) {
         App.showError(r(panel, "error"), "");
-        App.toast("Added " + data.user.full_name + ". Give them the temporary password in person.");
+        App.toast(payload.password
+          ? "Added " + data.user.full_name + ". Give them the temporary password in person."
+          : "Added " + data.user.full_name + ". They sign in with Google.");
         form.reset();
+        passwordVisibility();
         load();
       }).catch(function (err) { App.showError(r(panel, "error"), err.message); });
     });
