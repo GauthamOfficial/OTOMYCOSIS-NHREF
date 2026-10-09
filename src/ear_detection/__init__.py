@@ -1,4 +1,4 @@
-"""Ear condition screening from otoscope images.
+"""NHREF OtoScan: ear condition screening from otoscope images.
 
 Nawaloka Hospital Research and Education Foundation (NHREF).
 """

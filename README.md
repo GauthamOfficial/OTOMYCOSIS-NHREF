@@ -1,4 +1,4 @@
-# Ear Disease Detection System
+# NHREF OtoScan
 
 **Nawaloka Hospital PLC, Research and Education Foundation (NHREF)**
 

@@ -1,7 +1,6 @@
 # User Guide
 
-Ear Disease Detection System. Nawaloka Hospital PLC, Research and Education
-Foundation.
+NHREF OtoScan. Nawaloka Hospital PLC, Research and Education Foundation.
 
 > This is a screening aid for research use. It does not diagnose, and every
 > result must be reviewed by a qualified ENT practitioner.

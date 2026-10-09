@@ -1,4 +1,4 @@
-/* Ear Disease Detection System: session, API access and shared helpers.
+/* NHREF OtoScan: session, API access and shared helpers.
    Nawaloka Hospital PLC Research and Education Foundation.
 
    The access token lives only in this script's memory, never in storage, so

@@ -1,4 +1,4 @@
-"""Entry point for the ear condition screening service.
+"""Entry point for NHREF OtoScan, the ear condition screening service.
 
 Nawaloka Hospital Research and Education Foundation (NHREF).
 

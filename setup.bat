@@ -1,5 +1,5 @@
 @echo off
-rem Ear Disease Detection System - one time setup
+rem NHREF OtoScan - one time setup
 rem Nawaloka Hospital PLC Research and Education Foundation
 rem
 rem 1. Creates a private Python environment in .venv and installs dependencies.
@@ -12,8 +12,8 @@ setlocal
 cd /d "%~dp0"
 
 echo.
-echo  Ear Disease Detection System - setup
-echo  ====================================
+echo  NHREF OtoScan - setup
+echo  =====================
 echo.
 
 if exist ".venv\Scripts\python.exe" (

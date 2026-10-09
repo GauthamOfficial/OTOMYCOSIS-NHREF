@@ -1,6 +1,6 @@
 # Setup Guide
 
-Installing the Ear Disease Detection System on a Windows computer.
+Installing NHREF OtoScan on a Windows computer.
 Nawaloka Hospital PLC, Research and Education Foundation.
 
 Allow about 30 minutes, most of it downloads.

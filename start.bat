@@ -1,5 +1,5 @@
 @echo off
-rem Ear Disease Detection System - start the service and open the interface
+rem NHREF OtoScan - start the service and open the interface
 rem Nawaloka Hospital PLC Research and Education Foundation
 
 setlocal
@@ -22,8 +22,8 @@ if not exist ".env" (
 )
 
 echo.
-echo  Ear Disease Detection System
-echo  ============================
+echo  NHREF OtoScan
+echo  =============
 echo.
 echo  Loading the model, then opening http://localhost:5000
 echo  Keep this window open while using the system. Close it to stop.

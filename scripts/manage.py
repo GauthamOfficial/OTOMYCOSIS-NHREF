@@ -54,7 +54,7 @@ def read_env():
 
 def write_env(values):
     lines = [
-        "# Ear Disease Detection System settings. Keep this file private:",
+        "# NHREF OtoScan settings. Keep this file private:",
         "# it holds the database password and the token signing key.",
         "",
         "DATABASE_URL=%s" % values["DATABASE_URL"],
@@ -164,7 +164,7 @@ def ask_new_password(username):
 # ---------------- commands ----------------
 
 def cmd_setup(args):
-    print("\nEar Disease Detection System, first time setup\n")
+    print("\nNHREF OtoScan, first time setup\n")
     existing = read_env()
 
     print("PostgreSQL connection (the superuser is used once and not stored)")
