@@ -30,7 +30,15 @@ ARTIFACTS_DIR = os.path.join(BASE_DIR, "artifacts")
 # The weights and calibration shipped with the repository. They are registered
 # as the first model version when the database is created; later versions are
 # produced by retraining and live under models/candidates/.
-DEFAULT_MODEL_PATH = os.path.join(BASE_DIR, "models", "ear_classifier.keras")
+#
+# HDF5, not the native .keras format: inside a .keras file Keras 2.15 builds
+# the path to each layer's weights with os.path.join, so one written on
+# Windows holds paths like "layers\functional\layers\Conv1" that a Linux
+# process looks for as "layers/functional/layers/Conv1" and does not find. It
+# then loads every layer with no weights and raises. HDF5 always uses forward
+# slashes, so the same file loads on either system. This service is trained on
+# Windows and served on Linux, so that difference matters.
+DEFAULT_MODEL_PATH = os.path.join(BASE_DIR, "models", "ear_classifier.h5")
 LABELS_FILE = os.path.join(ARTIFACTS_DIR, "labels.json")
 CALIBRATION_FILE = os.path.join(ARTIFACTS_DIR, "calibration.json")
 INPUT_STATS_FILE = os.path.join(ARTIFACTS_DIR, "input_stats.json")

@@ -195,7 +195,7 @@ def main():
 
             set_job(job_id, message="Training candidate %s." % version, reviews_used=len(train_rows))
             epochs = ["--epochs-head", "1", "--epochs-finetune", "1"] if QUICK else []
-            model_path = os.path.join(out_dir, "model.keras")
+            model_path = os.path.join(out_dir, "model.h5")
             run_step([os.path.join("scripts", "train.py"), "--extra-rows", extra,
                       "--output", model_path,
                       "--summary", os.path.join(out_dir, "training_summary.json")] + epochs,

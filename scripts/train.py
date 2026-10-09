@@ -36,7 +36,9 @@ from common import ARTIFACTS, BASE_DIR, LABELS, MANIFEST, NORMALIZED_DIR, normal
 from ear_detection import imaging
 
 INPUT_STATS = os.path.join(ARTIFACTS, "input_stats.json")
-MODEL_OUT = os.path.join(BASE_DIR, "models", "ear_classifier.keras")
+# HDF5 rather than .keras, so a model trained on one operating system loads
+# on the other. See config.DEFAULT_MODEL_PATH.
+MODEL_OUT = os.path.join(BASE_DIR, "models", "ear_classifier.h5")
 
 SIZE = imaging.INPUT_SIZE
 BATCH_SIZE = 16          # 4 CPU cores and limited free RAM
