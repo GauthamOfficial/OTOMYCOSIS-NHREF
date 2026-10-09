@@ -20,12 +20,46 @@ five wrong passwords the account locks for 15 minutes.
 1. **Patient.** Enter the hospital record number, age, sex and which ear was
    examined. For a returning patient, the system recognises the record number
    and fills in the sex. Names are never entered or stored.
-2. **Image.** Drop the otoscope image onto the page or click to select it.
+2. **Image.** Either drop an image file onto the page, or choose **Camera or
+   endoscope** to capture one live (see below).
 3. **Run Analysis.** The result appears in a few seconds and is saved to the
    patient's record.
 4. **Review.** Confirm or correct the finding (see below).
 
 To start the next patient, click **Start next examination** or **Screening**.
+
+## Capturing from a camera or endoscope
+
+Most USB video otoscopes and endoscopes, and video towers connected through an
+HDMI capture adapter, appear to the computer as a camera, so they work here
+without extra software.
+
+1. Connect the device, then choose **Camera or endoscope** in the Image box.
+2. The first time, the browser asks permission to use the camera. Choose
+   **Allow**.
+3. If several cameras are connected, pick the right one under **Device**. The
+   system remembers your choice on this computer.
+4. Position the scope until the tympanic membrane is centred and in focus,
+   then click **Capture** or press **Space**. A USB foot pedal set to send
+   Space lets you capture hands free.
+5. Check the captured image. Click **Retake** if it is blurred, or **Run
+   Analysis** if it is good.
+
+The camera switches off once the analysis runs or you leave the page. Each
+examination records which device took its image, and the Dashboard reports
+agreement per device, so a poorly performing device can be spotted.
+
+If the camera does not start:
+
+| Message | What to do |
+| --- | --- |
+| Camera access was refused | Click the camera icon in the browser's address bar, allow access, then choose Camera again. |
+| No camera or endoscope was found | Check the cable, wait a few seconds, then choose Camera again. |
+| The device is in use by another program | Close the endoscope's own software or any video call, then choose the device again. |
+| Camera access needs a secure connection | Use the system on the computer it runs on, or ask IT to set up HTTPS for network use. |
+
+Some devices only work through their manufacturer's software. For those, save
+the image from that software and upload the file instead.
 
 ## Reading the result
 

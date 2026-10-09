@@ -15,6 +15,7 @@ exams_bp = Blueprint("exams", __name__, url_prefix=config.API_PREFIX)
 
 RECORD_NO = re.compile(r"^[A-Z0-9][A-Z0-9/_.\-]{0,63}$")
 VERDICTS = ("correct", "corrected", "other")
+IMAGE_SOURCES = ("upload", "camera")
 
 
 def registry():
@@ -58,6 +59,8 @@ def exam_summary(exam):
         "low_confidence": exam.low_confidence,
         "model_version": exam.model_version.version if exam.model_version else None,
         "clinician": exam.created_by.full_name if exam.created_by else None,
+        "image_source": exam.image_source or "upload",
+        "capture_device": exam.capture_device,
         "status": review_status(exam),
         "review": review.to_dict() if review else None,
     }
@@ -123,6 +126,13 @@ def create_examination():
     if ear not in config.EAR_CHOICES:
         return bad_request("Select which ear was examined.", "ear")
     notes = str(form.get("notes", "")).strip()[:2000] or None
+    image_source = str(form.get("image_source", "upload")).lower() or "upload"
+    if image_source not in IMAGE_SOURCES:
+        return bad_request("Unknown image source.", "image_source")
+    # The device name as the browser reports it, e.g. "USB Video Endoscope".
+    capture_device = re.sub(r"\s+", " ", str(form.get("capture_device", ""))).strip()[:120] or None
+    if image_source != "camera":
+        capture_device = None
 
     upload = request.files.get("file")
     if upload is None or upload.filename == "":
@@ -167,6 +177,7 @@ def create_examination():
             image_path=paths["image_path"], model_view_path=paths["model_view_path"],
             overlay_path=paths["overlay_path"], image_sha256=paths["image_sha256"],
             image_width=width, image_height=height,
+            image_source=image_source, capture_device=capture_device,
             model_version_id=active.version_id,
             predicted_class=finding["class"], predicted_probability=finding["probability"],
             abnormal_probability=referral["abnormal_probability"],

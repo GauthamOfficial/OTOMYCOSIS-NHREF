@@ -14,7 +14,7 @@ from werkzeug.exceptions import RequestEntityTooLarge
 from . import __version__, auth, config
 from .admin import admin_bp
 from .auth import login_required
-from .db import db
+from .db import db, upgrade_schema
 from .exams import exams_bp
 from .registry import Registry, ensure_seed_version
 from .stats import stats_bp
@@ -47,8 +47,11 @@ def create_app(overrides=None):
     app.extensions["registry"] = registry
 
     with app.app_context():
-        # Creates any missing tables; existing tables and data are untouched.
+        # Creates any missing tables, then adds columns introduced since an
+        # existing database was created. Existing data is never altered.
         db.create_all()
+        for column in upgrade_schema():
+            log.info("database upgraded: added column %s", column)
         ensure_seed_version()
         started = time.time()
         loaded = registry.load_active()

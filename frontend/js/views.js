@@ -25,6 +25,7 @@
     var dropzone = r(view, "dropzone");
     var analyseBtn = r(view, "analyse");
     var selected = null;
+    var selectedSource = "upload";
     var previewUrl = null;
     var knownPatient = null;
 
@@ -72,7 +73,7 @@
     form.addEventListener("input", refreshButton);
     form.addEventListener("change", refreshButton);
 
-    function selectFile(file) {
+    function selectFile(file, origin) {
       if (!file) { return; }
       if (file.type && ACCEPTED.indexOf(file.type) === -1) {
         App.showError(r(view, "form-error"), "Unsupported file type. Use a JPG, PNG, BMP, TIFF or WebP image.");
@@ -85,11 +86,13 @@
       App.showError(r(view, "form-error"), "");
       if (previewUrl) { URL.revokeObjectURL(previewUrl); }
       selected = file;
+      selectedSource = origin || "upload";
       previewUrl = URL.createObjectURL(file);
       r(view, "preview-img").src = previewUrl;
       r(view, "preview-name").textContent = file.name;
       r(view, "preview-size").textContent = App.formatSize(file.size);
       r(view, "preview").hidden = false;
+      r(view, "clear").textContent = selectedSource === "camera" ? "Retake" : "Replace";
       refreshButton();
     }
 
@@ -97,7 +100,7 @@
     dropzone.addEventListener("keydown", function (e) {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); }
     });
-    fileInput.addEventListener("change", function () { selectFile(fileInput.files[0]); });
+    fileInput.addEventListener("change", function () { selectFile(fileInput.files[0], "upload"); });
     ["dragenter", "dragover"].forEach(function (n) {
       dropzone.addEventListener(n, function (e) { e.preventDefault(); dropzone.classList.add("is-dragover"); });
     });
@@ -105,14 +108,171 @@
       dropzone.addEventListener(n, function (e) { e.preventDefault(); dropzone.classList.remove("is-dragover"); });
     });
     dropzone.addEventListener("drop", function (e) {
-      if (e.dataTransfer && e.dataTransfer.files.length) { selectFile(e.dataTransfer.files[0]); }
+      if (e.dataTransfer && e.dataTransfer.files.length) { selectFile(e.dataTransfer.files[0], "upload"); }
     });
-    r(view, "clear").addEventListener("click", function () {
+    function clearSelection() {
       selected = null;
       fileInput.value = "";
       r(view, "preview").hidden = true;
       refreshButton();
+    }
+    r(view, "clear").addEventListener("click", clearSelection);
+
+    /* ---------------- camera and endoscope capture ----------------
+       USB video otoscopes, endoscopes and HDMI capture cards present
+       themselves as ordinary cameras, so one path serves them all. */
+
+    var CAMERA_KEY = "ear.cameraDevice";
+    var toggle = r(view, "source-toggle");
+    var cameraPane = r(view, "camera-pane");
+    var video = r(view, "video");
+    var deviceSelect = r(view, "device");
+    var captureBtn = r(view, "capture");
+    var cameraMsg = r(view, "camera-message");
+    var stream = null;
+    var deviceLabel = "";
+    var locked = false;
+
+    var CAMERA_ERRORS = {
+      NotAllowedError: "Camera access was refused. Allow the camera for this site from the icon in " +
+        "the browser's address bar, then choose Camera again.",
+      SecurityError: "Camera access was refused by the browser's security settings.",
+      NotFoundError: "No camera or endoscope was found. Connect the device, wait a few seconds, " +
+        "then choose Camera again.",
+      NotReadableError: "The device is in use by another program, such as the endoscope's own " +
+        "software or a video call. Close that program, then choose the device again.",
+      AbortError: "The device stopped responding. Reconnect it, then choose it again."
+    };
+
+    function source() {
+      var checked = toggle.querySelector("input:checked");
+      return checked ? checked.value : "upload";
+    }
+
+    function remembered() {
+      try { return window.localStorage.getItem(CAMERA_KEY) || ""; } catch (e) { return ""; }
+    }
+    function remember(id) {
+      try { window.localStorage.setItem(CAMERA_KEY, id); } catch (e) { /* not essential */ }
+    }
+
+    function cameraMessage(text, isError) {
+      cameraMsg.textContent = text || "";
+      cameraMsg.classList.toggle("is-error", !!isError);
+      cameraMsg.hidden = !text;
+    }
+
+    function stopCamera() {
+      if (stream) { stream.getTracks().forEach(function (t) { t.stop(); }); }
+      stream = null;
+      video.srcObject = null;
+      captureBtn.disabled = true;
+    }
+
+    function listDevices(activeId) {
+      return navigator.mediaDevices.enumerateDevices().then(function (devices) {
+        var cams = devices.filter(function (d) { return d.kind === "videoinput"; });
+        deviceSelect.textContent = "";
+        cams.forEach(function (d, i) {
+          var option = el("option", null, d.label || ("Camera " + (i + 1)));
+          option.value = d.deviceId;
+          option.selected = d.deviceId === activeId;
+          deviceSelect.appendChild(option);
+        });
+      });
+    }
+
+    function startCamera(deviceId) {
+      stopCamera();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        cameraMessage("Camera access needs a secure connection. Use the system on this computer " +
+          "at http://localhost:5000, or ask IT to set up HTTPS for use across the network.", true);
+        return;
+      }
+      cameraMessage("Starting camera...");
+      var constraints = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+      if (deviceId) { constraints.deviceId = { exact: deviceId }; }
+
+      navigator.mediaDevices.getUserMedia({ video: constraints, audio: false }).then(function (s) {
+        if (source() !== "camera" || locked) {
+          s.getTracks().forEach(function (t) { t.stop(); });
+          return;
+        }
+        stream = s;
+        video.srcObject = s;
+        var track = s.getVideoTracks()[0];
+        deviceLabel = track.label || "";
+        var settings = track.getSettings ? track.getSettings() : {};
+        if (settings.deviceId) { remember(settings.deviceId); }
+        track.addEventListener("ended", function () {
+          if (stream === s) {
+            stopCamera();
+            cameraMessage("The device was disconnected. Reconnect it, then choose it again.", true);
+          }
+        });
+        cameraMessage("");
+        captureBtn.disabled = false;
+        return listDevices(settings.deviceId);
+      }).catch(function (err) {
+        var name = err && err.name;
+        if (name === "OverconstrainedError" && deviceId) {
+          /* The remembered device is no longer connected: fall back to the default one. */
+          remember("");
+          startCamera("");
+          return;
+        }
+        cameraMessage(CAMERA_ERRORS[name] || ("The camera could not be started" +
+          (err && err.message ? ": " + err.message : ".")), true);
+      });
+    }
+
+    function capture() {
+      if (!stream || !video.videoWidth || locked) { return; }
+      var canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(function (blob) {
+        if (!blob) { return; }
+        /* A neutral name: never anything that could identify the patient. */
+        var stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\..*$/, "").replace("T", "-");
+        selectFile(new File([blob], "capture-" + stamp + ".jpg", { type: "image/jpeg" }), "camera");
+      }, "image/jpeg", 0.95);
+    }
+    captureBtn.addEventListener("click", capture);
+
+    /* Space captures, so a USB foot pedal set to send Space works hands free.
+       Ignored while typing, and on buttons, which handle Space themselves. */
+    function onKey(e) {
+      if (e.key !== " " || source() !== "camera" || !stream || locked) { return; }
+      var tag = (e.target && e.target.tagName) || "";
+      if (/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(tag) || (e.target && e.target.isContentEditable)) { return; }
+      e.preventDefault();
+      capture();
+    }
+    document.addEventListener("keydown", onKey);
+
+    toggle.addEventListener("change", function () {
+      clearSelection();
+      if (source() === "camera") {
+        dropzone.hidden = true;
+        cameraPane.hidden = false;
+        startCamera(remembered());
+      } else {
+        stopCamera();
+        cameraPane.hidden = true;
+        dropzone.hidden = false;
+      }
     });
+    deviceSelect.addEventListener("change", function () {
+      clearSelection();
+      startCamera(deviceSelect.value);
+    });
+
+    screenCleanup = function () {
+      stopCamera();
+      document.removeEventListener("keydown", onKey);
+    };
 
     function show(which) {
       r(view, "placeholder").hidden = which !== "idle";
@@ -130,6 +290,8 @@
       data.append("ear", value("ear"));
       data.append("notes", value("notes"));
       data.append("file", selected);
+      data.append("image_source", selectedSource);
+      if (selectedSource === "camera") { data.append("capture_device", deviceLabel); }
 
       App.showError(r(view, "form-error"), "");
       analyseBtn.disabled = true;
@@ -148,6 +310,10 @@
           r(view, "next").hidden = false;
           setPrintPatient(exam);
           /* Lock the form: this examination is now on record. */
+          locked = true;
+          stopCamera();
+          cameraPane.hidden = true;
+          Array.prototype.forEach.call(toggle.querySelectorAll("input"), function (f) { f.disabled = true; });
           Array.prototype.forEach.call(form.elements, function (f) { f.disabled = true; });
           dropzone.style.pointerEvents = "none";
           r(view, "clear").hidden = true;
@@ -162,6 +328,7 @@
     });
 
     r(view, "new").addEventListener("click", function () {
+      App.views.screen.leave();
       App.releaseUrls();
       App.views.screen(view);
       window.scrollTo(0, 0);
@@ -169,6 +336,11 @@
 
     show("idle");
     recordInput.focus();
+  };
+  /* The camera must be released whenever the screening page is left. */
+  var screenCleanup = null;
+  App.views.screen.leave = function () {
+    if (screenCleanup) { screenCleanup(); screenCleanup = null; }
   };
   App.views.screen.title = ["Tympanic Membrane Screening",
     "Record the patient, analyse the otoscope image, then confirm or correct the finding."];
@@ -249,6 +421,9 @@
        ["Ear", App.capitalise(exam.ear)],
        ["Examined", App.formatDate(exam.created_at)],
        ["Clinician", exam.clinician],
+       ["Image source", exam.image_source === "camera"
+         ? "Camera" + (exam.capture_device ? ": " + exam.capture_device : "")
+         : "Uploaded file"],
        ["Model version", exam.model_version],
        ["Notes", exam.notes || "None"]].forEach(function (pair) {
         facts.appendChild(el("dt", null, pair[0]));
@@ -361,6 +536,23 @@
         tr.appendChild(el("td", "num", c.recall.total ? pct(c.recall.value, 0) : "n/a"));
         tr.appendChild(el("td", "num", c.precision.total ? pct(c.precision.value, 0) : "n/a"));
         body.appendChild(tr);
+      });
+
+      var sources = r(view, "by-source");
+      if (!s.by_source || !s.by_source.length) {
+        var none = el("tr");
+        var cell = el("td", "muted", "No reviewed cases yet.");
+        cell.colSpan = 4;
+        none.appendChild(cell);
+        sources.appendChild(none);
+      }
+      (s.by_source || []).forEach(function (row) {
+        var tr = el("tr");
+        tr.appendChild(el("td", null, row.source));
+        tr.appendChild(el("td", "num", row.cases));
+        tr.appendChild(el("td", "num", row.agreement.total ? pct(row.agreement.value, 0) : "n/a"));
+        tr.appendChild(el("td", "num", row.sensitivity.total ? pct(row.sensitivity.value, 0) : "n/a"));
+        sources.appendChild(tr);
       });
 
       function list(box, items, render, emptyText) {

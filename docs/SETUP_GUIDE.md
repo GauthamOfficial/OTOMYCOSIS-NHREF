@@ -120,7 +120,19 @@ Run these from a Command Prompt in the project folder:
 If every administrator is locked out, `reset-password` works without signing
 in.
 
-## 9. Retraining requirements
+## 9. Cameras and endoscopes
+
+Images can be captured live from any device that Windows sees as a camera.
+Most USB video otoscopes and endoscopes do; for a video tower, use an HDMI to
+USB capture adapter. To check a device, open the Windows **Camera** app: if
+the picture appears there, it will work in the system.
+
+Browsers only allow camera access over a secure connection. Using the system
+on the computer it runs on (`http://localhost:5000`) counts as secure. From
+other computers on the network it must be served over HTTPS (section 7), or
+the camera option will explain that it cannot start.
+
+## 10. Retraining requirements
 
 Retraining is started from **Admin, Model and Retraining**. It needs the
 original `Dataset` folder on the same computer, because reviewed clinic cases

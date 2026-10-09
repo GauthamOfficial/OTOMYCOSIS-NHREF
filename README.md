@@ -51,7 +51,8 @@ How to use the system day to day is in the **[User Guide](docs/USER_GUIDE.md)**.
 
 1. A surgeon **signs in** and enters the patient's hospital record number, age,
    sex and which ear was examined. No names are stored.
-2. They upload the otoscope image and **run the analysis**. The result is saved
+2. They upload the otoscope image, or **capture it live** from a webcam, USB
+   video otoscope or endoscope, and **run the analysis**. The result is saved
    to the patient's record with the date, time, clinician and model version.
 3. They **review** the finding: confirm it with one click, select the actual
    condition from the list (the prediction is always first), or type a
@@ -245,7 +246,7 @@ All endpoints except health and sign in require `Authorization: Bearer <token>`.
 | `POST` | `/api/v1/auth/login` | Sign in; returns an access token and sets the refresh cookie. |
 | `POST` | `/api/v1/auth/refresh` | New access token from the refresh cookie (needs `X-CSRF-TOKEN`). |
 | `POST` | `/api/v1/auth/password` | Change your password. |
-| `POST` | `/api/v1/examinations` | Multipart form: `record_no`, `age`, `sex`, `ear`, `notes`, `file`. Analyses and records. |
+| `POST` | `/api/v1/examinations` | Multipart form: `record_no`, `age`, `sex`, `ear`, `notes`, `file`, and optionally `image_source` (`upload` or `camera`) with `capture_device`. Analyses and records. |
 | `GET` | `/api/v1/examinations` | History, filterable by `q` and `status`, paginated. |
 | `GET` | `/api/v1/examinations/<id>` | One examination with its result and reviews. |
 | `GET` | `/api/v1/examinations/<id>/image/<kind>` | `original`, `view` or `overlay` image. |

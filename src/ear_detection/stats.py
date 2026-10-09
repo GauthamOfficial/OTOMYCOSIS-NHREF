@@ -63,6 +63,24 @@ def statistics():
                                          if e.predicted_class == c and l == c), len(predicted)),
         })
 
+    # Accuracy can differ between devices (the training data already showed
+    # source dependence), so agreement is reported per image source.
+    def source_of(exam):
+        if (exam.image_source or "upload") == "camera":
+            return "Camera: " + (exam.capture_device or "unnamed device")
+        return "Uploaded file"
+
+    by_source = []
+    for source in sorted({source_of(e) for e, _ in labelled}):
+        cases = [(e, l) for e, l in labelled if source_of(e) == source]
+        abnormal = [(e, l) for e, l in cases if l != config.NORMAL_CLASS]
+        by_source.append({
+            "source": source,
+            "cases": len(cases),
+            "agreement": _proportion(sum(1 for e, l in cases if l == e.predicted_class), len(cases)),
+            "sensitivity": _proportion(sum(1 for e, l in abnormal if e.referral == "refer"), len(abnormal)),
+        })
+
     corrections = Counter((e.predicted_class, l) for e, l in labelled if l != e.predicted_class)
     other_counts = Counter(o.strip().lower() for o in others if o)
     versions = Counter(e.model_version.version for e in exams if e.model_version)
@@ -83,6 +101,7 @@ def statistics():
             "other_diagnoses_referred": _proportion(other_referred, len(others)),
         },
         "per_class": per_class,
+        "by_source": by_source,
         "corrections": [
             {"predicted": config.display_name(p), "actual": config.display_name(a), "count": n}
             for (p, a), n in corrections.most_common(10)

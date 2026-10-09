@@ -130,6 +130,11 @@ class Examination(db.Model):
     image_sha256 = db.Column(db.String(64), index=True)
     image_width = db.Column(db.Integer)
     image_height = db.Column(db.Integer)
+    # How the image arrived: "upload" or "camera", and for a camera the device
+    # name the browser reported. Recorded because accuracy can differ between
+    # devices, and the dashboard reports agreement per source.
+    image_source = db.Column(db.String(16))
+    capture_device = db.Column(db.String(120))
 
     model_version_id = db.Column(db.Integer, db.ForeignKey("model_versions.id"), nullable=False)
     predicted_class = db.Column(db.String(64), nullable=False, index=True)
@@ -268,6 +273,51 @@ def record(action, user=None, entity=None, entity_id=None, detail=None, ip=None)
         detail=detail,
         ip=ip,
     ))
+
+
+def upgrade_schema():
+    """Add columns introduced after a database was first created.
+
+    ``create_all`` creates missing tables but never alters existing ones, so a
+    database set up with an earlier version would lack newer columns. This
+    adds any that are missing, and only ever adds: nothing is renamed,
+    changed or dropped, and only columns that may be empty are added, so
+    existing rows stay valid. Returns the columns it added.
+    """
+    from sqlalchemy import inspect, text
+
+    # An open transaction in this process would hold a lock that ALTER TABLE
+    # then waits on for ever. End it first.
+    db.session.close()
+
+    engine = db.engine
+    inspector = inspect(engine)
+    added = []
+    for table in db.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        present = {c["name"] for c in inspector.get_columns(table.name)}
+        for column in table.columns:
+            if column.name in present or not column.nullable or column.primary_key:
+                continue
+            column_type = column.type.compile(dialect=engine.dialect)
+            preparer = engine.dialect.identifier_preparer
+            with engine.begin() as conn:
+                if engine.dialect.name == "postgresql":
+                    # Another session holding the table (a running service,
+                    # an open pgAdmin window) would otherwise make start up
+                    # hang silently. Fail with a clear error instead.
+                    conn.execute(text("SET LOCAL lock_timeout = '10s'"))
+                try:
+                    conn.execute(text("ALTER TABLE %s ADD COLUMN %s %s" % (
+                        preparer.quote(table.name), preparer.quote(column.name), column_type)))
+                except Exception as exc:
+                    raise RuntimeError(
+                        "Could not upgrade the database table %s: it is in use by another "
+                        "program. Close other copies of the system and any database tools, "
+                        "then start again. (%s)" % (table.name, exc.__class__.__name__)) from exc
+            added.append("%s.%s" % (table.name, column.name))
+    return added
 
 
 def make_db_app(database_url=None):

@@ -101,12 +101,14 @@ def database_url(host, port, db_name, db_user, db_pass):
 
 
 def init_database(url):
-    from ear_detection.db import db, make_db_app
+    from ear_detection.db import db, make_db_app, upgrade_schema
     from ear_detection.registry import ensure_seed_version
 
     app = make_db_app(url)
     with app.app_context():
         db.create_all()
+        for column in upgrade_schema():
+            print("Upgraded database: added column %s" % column)
         ensure_seed_version()
     return app
 

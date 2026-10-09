@@ -270,6 +270,26 @@
       <section class="card no-print">
         <div class="card-head"><h2>Image</h2><span class="step">Step 2</span></div>
         <div class="card-body">
+          <div class="segmented source-toggle" data-r="source-toggle" role="radiogroup" aria-label="Image source">
+            <label><input type="radio" name="image_source" value="upload" checked><span>Upload a file</span></label>
+            <label><input type="radio" name="image_source" value="camera"><span>Camera or endoscope</span></label>
+          </div>
+
+          <div data-r="camera-pane" hidden>
+            <div class="field" data-r="device-field">
+              <label for="f-device">Device</label>
+              <select id="f-device" data-r="device"></select>
+            </div>
+            <div class="camera-stage">
+              <video data-r="video" autoplay playsinline muted></video>
+              <p class="camera-message" data-r="camera-message">Starting camera...</p>
+            </div>
+            <div class="camera-actions">
+              <button type="button" class="btn btn-primary" data-r="capture" disabled>Capture</button>
+              <span class="field-hint">or press <kbd>Space</kbd> or a foot pedal set to Space</span>
+            </div>
+          </div>
+
           <div class="dropzone" data-r="dropzone" tabindex="0" role="button"
                aria-label="Select an otoscope image, or drop a file here">
             <div class="dz-frame" aria-hidden="true">
@@ -478,6 +498,19 @@
           <thead><tr><th>Condition</th><th class="num">Reviewed cases</th><th class="num">Recognised</th><th class="num">Correct when predicted</th></tr></thead>
           <tbody data-r="per-class"></tbody>
         </table>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>By Image Source</h2></div>
+      <div class="card-body table-wrap">
+        <table class="data-table">
+          <thead><tr><th>Source</th><th class="num">Reviewed cases</th><th class="num">Surgeon agreed</th><th class="num">Referral sensitivity</th></tr></thead>
+          <tbody data-r="by-source"></tbody>
+        </table>
+        <p class="stats-note">
+          Accuracy can differ between devices. If one camera or endoscope does markedly worse,
+          check its focus, lighting and resolution before relying on it.
+        </p>
       </div>
     </section>
     <div class="split">
