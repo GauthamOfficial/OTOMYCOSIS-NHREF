@@ -6,20 +6,19 @@ Every route here requires the admin role.
 import os
 import re
 import shutil
+from datetime import timedelta
 
 from flask import Blueprint, current_app, g, jsonify, request
 from werkzeug.security import check_password_hash
 
 from . import config, reporting, retraining, storage
-from .auth import client_ip, hash_password, login_required, password_problem
+from .auth import client_ip, email_problem, hash_password, login_required, password_problem
 from .db import (
     AuditEvent, BacktestRun, Examination, ModelVersion, Patient, Review, TrainingJob, User, as_utc, db,
-    record, utcnow,
+    iso, record, utcnow,
 )
 
 admin_bp = Blueprint("admin", __name__, url_prefix=config.API_PREFIX + "/admin")
-
-USERNAME = re.compile(r"^[a-z0-9._\-]{3,64}$")
 
 
 def _error(message, status=400, field=None):
@@ -52,16 +51,16 @@ def list_users():
 @login_required("admin")
 def create_user():
     body = request.get_json(silent=True) or {}
-    username = str(body.get("username", "")).strip().lower()
+    username = str(body.get("email") or body.get("username") or "").strip().lower()
     full_name = re.sub(r"\s+", " ", str(body.get("full_name", ""))).strip()
     role = str(body.get("role", "clinician"))
     password = str(body.get("password", ""))
 
-    if not USERNAME.match(username):
-        return _error("Username must be 3 to 64 characters: lower case letters, digits, . _ -",
-                      field="username")
+    problem = email_problem(username)
+    if problem:
+        return _error(problem, field="email")
     if User.query.filter_by(username=username).first():
-        return _error("That username is already taken.", 409, "username")
+        return _error("An account already uses that email address.", 409, "email")
     if not 2 <= len(full_name) <= 120:
         return _error("Enter the person's full name.", field="full_name")
     if role not in config.ROLE_CHOICES:
@@ -88,6 +87,18 @@ def update_user(user_id):
         return _error("User not found.", 404)
     body = request.get_json(silent=True) or {}
     changes = {}
+
+    if "email" in body and str(body["email"]).strip().lower() != user.username:
+        email = str(body["email"]).strip().lower()
+        problem = email_problem(email)
+        if problem:
+            return _error(problem, field="email")
+        if User.query.filter_by(username=email).first():
+            return _error("An account already uses that email address.", 409, "email")
+        changes["email"] = {"from": user.username, "to": email}
+        user.username = email
+        # They now sign in with a different address, so end any open session.
+        user.token_version += 1
 
     if "full_name" in body:
         name = re.sub(r"\s+", " ", str(body["full_name"])).strip()
@@ -295,9 +306,58 @@ def clear_records():
 
 # ---------------- audit ----------------
 
+AUDIT_CLEAR_PHRASE = "CLEAR AUDIT LOG"
+AUDIT_CLEAR_CHOICES = (0, 30, 90, 365)
+
+
 @admin_bp.route("/audit")
 @login_required("admin")
 def audit_log():
     limit = min(500, max(1, request.args.get("limit", 100, type=int)))
     events = AuditEvent.query.order_by(AuditEvent.at.desc(), AuditEvent.id.desc()).limit(limit).all()
-    return jsonify({"items": [e.to_dict() for e in events]})
+    oldest = AuditEvent.query.order_by(AuditEvent.at).first()
+    return jsonify({
+        "items": [e.to_dict() for e in events],
+        "total": AuditEvent.query.count(),
+        "oldest": iso(oldest.at) if oldest else None,
+        "confirm_phrase": AUDIT_CLEAR_PHRASE,
+        "keep_choices": list(AUDIT_CLEAR_CHOICES),
+    })
+
+
+@admin_bp.route("/audit/clear", methods=["POST"])
+@login_required("admin")
+def clear_audit_log():
+    """Delete audit entries, either all of them or those past a given age.
+
+    The log is the record of who did what, so clearing it is itself recorded:
+    the entry describing this deletion is written afterwards and survives it.
+    Removing everything also needs the confirmation phrase, since nothing
+    before this moment can be reconstructed afterwards.
+    """
+    body = request.get_json(silent=True) or {}
+    try:
+        older_than_days = int(body.get("older_than_days", 0))
+    except (TypeError, ValueError):
+        older_than_days = -1
+    if older_than_days not in AUDIT_CLEAR_CHOICES:
+        return _error("Choose how much of the log to clear.", field="older_than_days")
+    if not check_password_hash(g.user.password_hash, str(body.get("password", ""))):
+        return _error("Your password is incorrect.", 403, field="password")
+    if older_than_days == 0 and str(body.get("confirm", "")).strip() != AUDIT_CLEAR_PHRASE:
+        return _error('Type "%s" exactly to clear the whole log.' % AUDIT_CLEAR_PHRASE,
+                      field="confirm")
+
+    query = AuditEvent.query
+    detail = {"scope": "everything"}
+    if older_than_days:
+        cutoff = utcnow() - timedelta(days=older_than_days)
+        query = query.filter(AuditEvent.at < cutoff)
+        detail = {"scope": "older than %d days" % older_than_days, "before": iso(cutoff)}
+
+    detail["removed"] = query.count()
+    query.delete(synchronize_session=False)
+    # Written after the deletion, so this entry is never removed by it.
+    record("audit_cleared", user=g.user, entity="audit", detail=detail, ip=client_ip())
+    db.session.commit()
+    return jsonify({"removed": detail["removed"], "remaining": AuditEvent.query.count()})

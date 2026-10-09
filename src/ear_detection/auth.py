@@ -14,6 +14,7 @@ password, or deactivating an account, increments it, which invalidates every
 outstanding token for that user at once.
 """
 
+import re
 from datetime import timedelta
 from functools import wraps
 
@@ -64,6 +65,27 @@ def client_ip():
         if forwarded:
             return forwarded[:64]
     return request.remote_addr
+
+
+EMAIL = re.compile(r"^[a-z0-9][a-z0-9._%+-]*@[a-z0-9]([a-z0-9-]*[a-z0-9])?"
+                   r"(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+MAX_EMAIL_LENGTH = 64
+
+
+def email_problem(email):
+    """A reason the email address cannot be used to sign in, or None.
+
+    Accounts are identified by the person's work or Gmail address, so there
+    is no separate username to invent, remember or mistype. The length limit
+    is the width of the stored column.
+    """
+    if not email:
+        return "Enter the person's email address."
+    if len(email) > MAX_EMAIL_LENGTH:
+        return "Email address must be at most %d characters." % MAX_EMAIL_LENGTH
+    if not EMAIL.match(email):
+        return "Enter a valid email address, for example name@gmail.com."
+    return None
 
 
 def password_problem(password, username=""):
@@ -155,9 +177,11 @@ def login_required(*roles, allow_password_change=False):
 @auth_bp.route("/login", methods=["POST"])
 def login():
     body = request.get_json(silent=True) or {}
-    username = str(body.get("username", "")).strip().lower()
+    # Accounts are identified by email address. Accounts created before that
+    # rule still sign in with the name they were given.
+    username = str(body.get("email") or body.get("username") or "").strip().lower()
     password = str(body.get("password", ""))
-    generic = jsonify({"error": "Incorrect username or password."}), 401
+    generic = jsonify({"error": "Incorrect email address or password."}), 401
 
     user = User.query.filter_by(username=username).first() if username else None
     if user is None:

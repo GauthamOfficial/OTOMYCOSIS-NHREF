@@ -41,6 +41,8 @@ class User(db.Model):
     __tablename__ = "users"
 
     id = db.Column(db.Integer, primary_key=True)
+    # The person's email address, which is what they sign in with. Accounts
+    # created before that rule hold the plain name they were given.
     username = db.Column(db.String(64), unique=True, nullable=False, index=True)
     full_name = db.Column(db.String(120), nullable=False)
     role = db.Column(db.String(16), nullable=False, default="clinician")
@@ -60,6 +62,8 @@ class User(db.Model):
         return {
             "id": self.id,
             "username": self.username,
+            # What the interface shows and asks for at sign in.
+            "email": self.username,
             "full_name": self.full_name,
             "role": self.role,
             "is_active": self.is_active,

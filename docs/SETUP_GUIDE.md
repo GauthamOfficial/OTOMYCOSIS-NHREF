@@ -70,8 +70,10 @@ interface opens at <http://localhost:5000>. Keep the black window open; closing
 it stops the service.
 
 Sign in as the administrator, open **Admin**, and add an account for each
-surgeon. Each new user receives a temporary password, which they must replace
-with their own at first sign in. Give temporary passwords in person.
+surgeon. Accounts are identified by email address, a Gmail address or a
+hospital one, which is what each person signs in with. Each new user receives
+a temporary password, which they must replace with their own at first sign in.
+Give temporary passwords in person.
 
 ## 6. Back up
 
@@ -114,9 +116,9 @@ Run these from a Command Prompt in the project folder:
 | Task | Command |
 | --- | --- |
 | Check the database connection | `.venv\Scripts\python.exe scripts\manage.py check` |
-| Add a user | `.venv\Scripts\python.exe scripts\manage.py create-user` |
-| Reset a password | `.venv\Scripts\python.exe scripts\manage.py reset-password USERNAME` |
-| Unlock an account after failed sign ins | `.venv\Scripts\python.exe scripts\manage.py unlock USERNAME` |
+| Add a user | `.venv\Scripts\python.exe scripts\manage.py create-user` (asks for an email address) |
+| Reset a password | `.venv\Scripts\python.exe scripts\manage.py reset-password EMAIL` |
+| Unlock an account after failed sign ins | `.venv\Scripts\python.exe scripts\manage.py unlock EMAIL` |
 | Bring images stored by an earlier version within 200 KB | `.venv\Scripts\python.exe scripts\manage.py shrink-images` |
 | Run a backtest now | `.venv\Scripts\python.exe scripts\backtest.py` |
 | Run the test suite | `.venv\Scripts\python.exe -m pytest` |

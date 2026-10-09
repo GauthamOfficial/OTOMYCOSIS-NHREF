@@ -135,7 +135,7 @@ window.App = (function () {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: username, password: password })
+      body: JSON.stringify({ email: username, password: password })
     }).then(function (response) {
       return response.json().catch(function () { return {}; }).then(function (data) {
         if (!response.ok) { throw new Error(data.error || "Sign in failed."); }

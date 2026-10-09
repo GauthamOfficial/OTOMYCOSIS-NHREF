@@ -5,24 +5,25 @@ from conftest import ADMIN, examination
 
 def test_admin_creates_a_clinician_with_a_temporary_password(client, admin):
     response = client.post("/api/v1/admin/users", headers=admin, json={
-        "username": "dr.silva", "full_name": "Dr Silva", "role": "clinician",
+        "email": "dr.silva@nhref.lk", "full_name": "Dr Silva", "role": "clinician",
         "password": "Temp-Pass-2026"})
     assert response.status_code == 201
     assert response.get_json()["user"]["must_change_password"] is True
 
     taken = client.post("/api/v1/admin/users", headers=admin, json={
-        "username": "dr.silva", "full_name": "Other", "role": "clinician", "password": "Temp-Pass-2026"})
+        "email": "dr.silva@nhref.lk", "full_name": "Other", "role": "clinician",
+        "password": "Temp-Pass-2026"})
     assert taken.status_code == 409
 
 
 def test_user_input_is_validated(client, admin):
     def attempt(**fields):
-        body = {"username": "valid.name", "full_name": "Valid Name", "role": "clinician",
+        body = {"email": "valid.name@nhref.lk", "full_name": "Valid Name", "role": "clinician",
                 "password": "Valid-Pass-2026"}
         body.update(fields)
         return client.post("/api/v1/admin/users", headers=admin, json=body)
 
-    assert attempt(username="No Spaces").status_code == 400
+    assert attempt(email="not an address").status_code == 400
     assert attempt(role="superuser").status_code == 400
     assert attempt(password="short").status_code == 400
     assert attempt(full_name="").status_code == 400
@@ -41,13 +42,14 @@ def test_an_admin_cannot_lock_themselves_out(app, client, admin):
 
 def test_password_reset_forces_a_change(app, client, admin):
     created = client.post("/api/v1/admin/users", headers=admin, json={
-        "username": "forgetful", "full_name": "Forgetful", "role": "clinician",
+        "email": "forgetful@nhref.lk", "full_name": "Forgetful", "role": "clinician",
         "password": "First-Pass-2026"}).get_json()["user"]
     reset = client.post("/api/v1/admin/users/%d/reset-password" % created["id"], headers=admin,
                         json={"password": "Second-Pass-2026"})
     assert reset.status_code == 200
     assert reset.get_json()["user"]["must_change_password"] is True
-    login = client.post("/api/v1/auth/login", json={"username": "forgetful", "password": "Second-Pass-2026"})
+    login = client.post("/api/v1/auth/login",
+                        json={"email": "forgetful@nhref.lk", "password": "Second-Pass-2026"})
     assert login.status_code == 200
 
 

@@ -2,7 +2,7 @@
 
     python scripts/manage.py setup            guided first time setup
     python scripts/manage.py init-db          create any missing tables
-    python scripts/manage.py create-user      add a user account
+    python scripts/manage.py create-user      add a user account by email address
     python scripts/manage.py reset-password   set a new temporary password
     python scripts/manage.py unlock           clear a sign in lockout
     python scripts/manage.py check            test the database connection
@@ -115,15 +115,16 @@ def init_database(url):
 
 
 def create_user(app, username, full_name, role, password, must_change):
-    from ear_detection.auth import hash_password, password_problem
+    from ear_detection.auth import email_problem, hash_password, password_problem
     from ear_detection.db import User, db, record
 
-    problem = password_problem(password, username)
+    username = (username or "").strip().lower()
+    problem = email_problem(username) or password_problem(password, username)
     if problem:
         raise SystemExit(problem)
     with app.app_context():
         if User.query.filter_by(username=username).first():
-            raise SystemExit("User %s already exists." % username)
+            raise SystemExit("An account already uses %s." % username)
         user = User(username=username, full_name=full_name, role=role,
                     password_hash=hash_password(password), must_change_password=must_change)
         db.session.add(user)
@@ -133,9 +134,10 @@ def create_user(app, username, full_name, role, password, must_change):
         db.session.commit()
 
 
-def valid_username(value):
-    return None if re.match(r"^[a-z0-9._\-]{3,64}$", value or "") else \
-        "3 to 64 characters: lower case letters, digits, . _ -"
+def valid_email(value):
+    """People sign in with their email address, so that is the account name."""
+    from ear_detection.auth import email_problem
+    return email_problem((value or "").strip().lower())
 
 
 def valid_identifier(value):
@@ -195,7 +197,7 @@ def cmd_setup(args):
         print("An administrator already exists; skipping account creation.")
     else:
         print("\nFirst administrator account")
-        username = args.admin_username or ask("Username", "admin", validate=valid_username)
+        username = args.admin_username or ask("Email address", validate=valid_email)
         full_name = args.admin_name or ask("Full name")
         password = args.admin_password or ask_new_password(username)
         create_user(app, username, full_name, "admin", password, must_change=False)
@@ -218,7 +220,7 @@ def cmd_init_db(args):
 
 def cmd_create_user(args):
     app = _app_or_exit()
-    username = args.username or ask("Username", validate=valid_username)
+    username = args.email or args.username or ask("Email address", validate=valid_email)
     full_name = args.name or ask("Full name")
     role = args.role or ask("Role (admin or clinician)", "clinician",
                             validate=lambda v: None if v in ("admin", "clinician") else
@@ -231,9 +233,9 @@ def cmd_create_user(args):
 
 def _find_user(username):
     from ear_detection.db import User
-    user = User.query.filter_by(username=username).first()
+    user = User.query.filter_by(username=(username or "").strip().lower()).first()
     if user is None:
-        raise SystemExit("No user named %s." % username)
+        raise SystemExit("No account for %s." % username)
     return user
 
 
@@ -344,19 +346,20 @@ def main():
     sub.add_parser("init-db", help="create any missing tables").set_defaults(func=cmd_init_db)
 
     create = sub.add_parser("create-user", help="add a user account")
-    create.add_argument("--username")
+    create.add_argument("--email", help="the address they sign in with")
+    create.add_argument("--username", help=argparse.SUPPRESS)
     create.add_argument("--name")
     create.add_argument("--role", choices=("admin", "clinician"))
     create.add_argument("--password")
     create.set_defaults(func=cmd_create_user)
 
     reset = sub.add_parser("reset-password", help="set a new temporary password")
-    reset.add_argument("username")
+    reset.add_argument("username", metavar="EMAIL")
     reset.add_argument("--password")
     reset.set_defaults(func=cmd_reset_password)
 
     unlock = sub.add_parser("unlock", help="clear a sign in lockout")
-    unlock.add_argument("username")
+    unlock.add_argument("username", metavar="EMAIL")
     unlock.set_defaults(func=cmd_unlock)
 
     sub.add_parser("check", help="test the database connection").set_defaults(func=cmd_check)

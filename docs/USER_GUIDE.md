@@ -158,10 +158,31 @@ for the patient's notes.
 
 ### Users
 
-Add an account for each person who uses the system, with a temporary password
-given to them in person. You can change roles, deactivate accounts (which
-signs the person out immediately) and reset passwords. You cannot deactivate
-yourself or remove the last administrator.
+Add an account for each person who uses the system. An account is identified
+by the person's email address, a Gmail address or a hospital one, which is
+what they type to sign in. There is no separate username to invent or
+remember.
+
+Fill in **Email address**, **Full name** and **Role**, then either type a
+temporary password or click **Generate a temporary password**. Give that
+password to them in person; they must replace it with their own at first sign
+in.
+
+In the Users table you can:
+
+- **Change the email address.** Click **Change** next to it, type the new
+  address and click **Save**. They are signed out at once and sign in again
+  with the new address. This is also how an account created before email
+  addresses were used, such as an early `admin` account, is moved to a real
+  address.
+- **Change the role** with the dropdown in the Role column. Clinicians screen
+  and review; administrators can also manage users, models, records and the
+  audit log. You cannot change your own role.
+- **Deactivate or activate** an account. Deactivating signs the person out
+  immediately and keeps their past examinations and reviews.
+- **Reset a password** when someone is locked out or has forgotten theirs.
+
+You cannot deactivate yourself or remove the last administrator.
 
 ### Model and retraining
 
@@ -213,4 +234,19 @@ immediately, for example after approving a new model.
 ### Audit log
 
 Every sign in, failed sign in, examination, review, account change, retraining
-run and model approval is recorded with the user, time and network address.
+run, backtest and model approval is recorded with the user, time and network
+address. The heading shows how many entries there are and how far back they
+go.
+
+**Clearing the log.** Under the table, **Clear Audit Log** removes old
+entries. Choose how much to clear, enter your own password and confirm:
+
+- **Entries older than 1 year, 90 days or 30 days.** Routine housekeeping that
+  keeps recent activity.
+- **Everything.** Also needs the phrase `CLEAR AUDIT LOG` typed exactly, since
+  nothing before that moment can be recovered.
+
+The clearing itself is always recorded, so the log still shows that it
+happened, who did it and how many entries went. Patients, examinations,
+reviews and accounts are never touched. Check your hospital's rules on
+keeping activity records before clearing anything.

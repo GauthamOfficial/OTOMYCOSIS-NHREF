@@ -19,6 +19,71 @@
 
   /* ======================= Users ======================= */
 
+  /* The address a user signs in with, changed in place. */
+  function emailCell(user, reload) {
+    var cell = el("td", "muted");
+
+    function show() {
+      cell.textContent = "";
+      cell.appendChild(el("span", null, user.email));
+      var change = el("button", "textbtn", "Change");
+      change.type = "button";
+      change.style.marginLeft = "8px";
+      change.addEventListener("click", edit);
+      cell.appendChild(change);
+    }
+
+    function edit() {
+      cell.textContent = "";
+      var input = el("input", "input");
+      input.type = "text";
+      input.value = user.email;
+      input.spellcheck = false;
+      input.style.minWidth = "200px";
+      var save = el("button", "btn btn-small btn-primary", "Save");
+      var cancel = el("button", "btn btn-small", "Cancel");
+      save.type = cancel.type = "button";
+      save.style.marginLeft = "6px";
+      cancel.style.marginLeft = "6px";
+
+      function submit() {
+        var email = input.value.trim().toLowerCase();
+        if (email === user.email) { show(); return; }
+        var self = user.id === App.state.user.id;
+        if (!window.confirm(self
+            ? "Change your own sign in address to " + email + "?\n\nYou will be signed out and must sign in again with the new address."
+            : "Change the sign in address for " + user.full_name + " to " + email +
+              "?\n\nThey will be signed out and must use the new address.")) { return; }
+        save.disabled = cancel.disabled = true;
+        App.request("PATCH", "/admin/users/" + user.id, { json: { email: email } })
+          .then(function () {
+            App.toast(self ? "Your sign in address was changed. Sign in again."
+                           : "Sign in address changed for " + user.full_name + ".");
+            reload();
+          })
+          .catch(function (err) {
+            save.disabled = cancel.disabled = false;
+            App.toast(err.message, true);
+          });
+      }
+
+      save.addEventListener("click", submit);
+      cancel.addEventListener("click", show);
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); submit(); }
+        if (e.key === "Escape") { show(); }
+      });
+      cell.appendChild(input);
+      cell.appendChild(save);
+      cell.appendChild(cancel);
+      input.focus();
+      input.select();
+    }
+
+    show();
+    return cell;
+  }
+
   function usersPanel(panel) {
     App.mount(panel, "tpl-admin-users");
     var form = r(panel, "add-user");
@@ -30,7 +95,7 @@
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var payload = {
-        username: form.elements.username.value.trim().toLowerCase(),
+        email: form.elements.email.value.trim().toLowerCase(),
         full_name: form.elements.full_name.value.trim(),
         role: form.elements.role.value,
         password: form.elements.password.value
@@ -50,7 +115,7 @@
         data.items.forEach(function (u) {
           var tr = el("tr");
           tr.appendChild(el("td", null, u.full_name));
-          tr.appendChild(el("td", "muted", u.username));
+          tr.appendChild(emailCell(u, load));
 
           var roleCell = el("td");
           var role = el("select", "input");
@@ -354,25 +419,80 @@
     retraining_started: "Started retraining", model_approved: "Approved model",
     model_rejected: "Rejected model", examination_deleted: "Deleted examination",
     records_cleared: "Cleared all records", backtest_started: "Started backtest",
-    backtest_completed: "Backtest completed"
+    backtest_completed: "Backtest completed", audit_cleared: "Cleared audit log"
   };
 
   function auditPanel(panel) {
     App.mount(panel, "tpl-admin-audit");
-    App.request("GET", "/admin/audit?limit=200").then(function (data) {
-      var body = r(panel, "rows");
-      data.items.forEach(function (e) {
-        var tr = el("tr");
-        tr.appendChild(el("td", null, App.formatDate(e.at)));
-        tr.appendChild(el("td", null, e.user || (e.detail && e.detail.username) || "Unknown"));
-        tr.appendChild(el("td", null, ACTIONS[e.action] || e.action));
-        var item = e.entity ? e.entity.replace("_", " ") : "";
-        if (e.entity_id) { item += " " + e.entity_id; }
-        tr.appendChild(el("td", "muted", item));
-        tr.appendChild(el("td", "muted", e.ip || ""));
-        body.appendChild(tr);
+    var form = r(panel, "clear-form");
+    var button = r(panel, "clear");
+    var phrase = "";
+
+    function scope() { return form.elements.older_than_days.value; }
+
+    function refresh() {
+      var all = scope() === "0";
+      r(panel, "phrase-field").hidden = !all;
+      r(panel, "preview").textContent = all
+        ? "Every entry is removed, including today's."
+        : "Entries from the last " + scope() + " days are kept.";
+      button.textContent = all ? "Clear the whole log" : "Clear older entries";
+      button.disabled = !form.elements.password.value ||
+        (all && form.elements.confirm.value.trim() !== phrase);
+    }
+    form.addEventListener("input", refresh);
+    form.addEventListener("change", refresh);
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (button.disabled) { return; }
+      var all = scope() === "0";
+      if (!window.confirm(all ? "Delete every entry in the audit log? This cannot be undone."
+                              : "Delete entries older than " + scope() + " days? This cannot be undone.")) { return; }
+      button.disabled = true;
+      App.request("POST", "/admin/audit/clear", {
+        json: {
+          older_than_days: Number(scope()),
+          confirm: form.elements.confirm.value.trim(),
+          password: form.elements.password.value
+        }
+      }).then(function (d) {
+        form.elements.password.value = "";
+        form.elements.confirm.value = "";
+        App.showError(r(panel, "error"), "");
+        App.toast("Removed " + d.removed + " entr" + (d.removed === 1 ? "y" : "ies") + ".");
+        load();
+      }).catch(function (err) {
+        App.showError(r(panel, "error"), err.message);
+        form.elements.password.value = "";
+        refresh();
       });
-    }).catch(function (err) { App.toast(err.message, true); });
+    });
+
+    function load() {
+      App.request("GET", "/admin/audit?limit=200").then(function (data) {
+        phrase = data.confirm_phrase;
+        r(panel, "phrase").textContent = phrase;
+        r(panel, "count").textContent = data.total + " entr" + (data.total === 1 ? "y" : "ies") +
+          (data.oldest ? ", oldest " + App.formatDate(data.oldest, false) : "");
+        refresh();
+        var body = r(panel, "rows");
+        body.textContent = "";
+        data.items.forEach(function (e) {
+          var tr = el("tr");
+          tr.appendChild(el("td", null, App.formatDate(e.at)));
+          tr.appendChild(el("td", null, e.user || (e.detail && e.detail.username) || "Unknown"));
+          tr.appendChild(el("td", null, ACTIONS[e.action] || e.action));
+          var item = e.entity ? e.entity.replace("_", " ") : "";
+          if (e.entity_id) { item += " " + e.entity_id; }
+          tr.appendChild(el("td", "muted", item));
+          tr.appendChild(el("td", "muted", e.ip || ""));
+          body.appendChild(tr);
+        });
+      }).catch(function (err) { App.toast(err.message, true); });
+    }
+
+    load();
   }
 
   /* ======================= Shell ======================= */

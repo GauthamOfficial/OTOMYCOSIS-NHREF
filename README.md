@@ -237,7 +237,9 @@ metadata. Duplicate detection still uses a hash of the file as uploaded. On 80
 test images enlarged to 2400 by 1800 pixels, compressing to 200 KB changed no
 finding and no referral decision; most kept their full resolution.
 
-**Accounts.** Passwords are hashed with scrypt and must be at least ten
+**Accounts.** People sign in with their email address, so there is no shared
+or invented username to guess, and the audit log names a real person.
+Passwords are hashed with scrypt and must be at least ten
 characters mixing letters with numbers or symbols. New accounts receive a
 temporary password that must be changed at first sign in. Five failed sign ins
 lock an account for fifteen minutes. Users are signed out after thirty minutes
@@ -254,8 +256,9 @@ only its own database; the superuser password is used once at setup and never
 stored. Reviews are append only, and every sign in, examination, review,
 account change, deletion and model approval is recorded in an audit log.
 Deleting records needs the administrator role; clearing everything also needs
-a typed confirmation phrase and the administrator's password, and the audit
-log itself is never cleared.
+a typed confirmation phrase and the administrator's password. An administrator
+can clear audit entries past a chosen age, or the whole log with the same two
+guards, and that clearing is recorded in the log it leaves behind.
 
 **Secrets** live in a `.env` file that is excluded from git. By default the
 service only accepts connections from the computer it runs on. See the Setup
@@ -268,7 +271,7 @@ All endpoints except health and sign in require `Authorization: Bearer <token>`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `POST` | `/api/v1/auth/login` | Sign in; returns an access token and sets the refresh cookie. |
+| `POST` | `/api/v1/auth/login` | Sign in with `email` and `password`; returns an access token and sets the refresh cookie. |
 | `POST` | `/api/v1/auth/refresh` | New access token from the refresh cookie (needs `X-CSRF-TOKEN`). |
 | `POST` | `/api/v1/auth/password` | Change your password. |
 | `POST` | `/api/v1/examinations` | Multipart form: `record_no`, `age`, `sex`, `ear`, `notes`, `file`, and optionally `image_source` (`upload` or `camera`) with `capture_device`. Analyses and records. |
@@ -284,7 +287,7 @@ All endpoints except health and sign in require `Authorization: Bearer <token>`.
 | `POST` | `/api/v1/backtests` | Start a backtest now. Administrators only. |
 | `GET` | `/api/v1/model` | Model version, threshold, test results, classes. |
 | `GET` | `/api/v1/health` | Service status. |
-| | `/api/v1/admin/...` | Users, model versions, retraining, approval, records (including clearing all) and the audit log. Administrators only. |
+| | `/api/v1/admin/...` | Users (added and found by email address), model versions, retraining, approval, records (including clearing all) and the audit log (including clearing it). Administrators only. |
 
 ## Retraining from scratch
 

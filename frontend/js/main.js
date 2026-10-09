@@ -33,7 +33,7 @@
     var username = document.getElementById("login-username").value.trim();
     var password = document.getElementById("login-password").value;
     if (!username || !password) {
-      App.showError(loginError, "Enter your username and password.");
+      App.showError(loginError, "Enter your email address and password.");
       return;
     }
     button.disabled = true;

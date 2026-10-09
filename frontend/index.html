@@ -26,8 +26,8 @@
         <p class="lead">Ear Disease Detection System</p>
         <form id="login-form" novalidate>
           <div class="field">
-            <label for="login-username">Username</label>
-            <input type="text" id="login-username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+            <label for="login-username">Email address</label>
+            <input type="text" id="login-username" autocomplete="username" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="name@gmail.com" required>
           </div>
           <div class="field">
             <label for="login-password">Password</label>
@@ -606,14 +606,14 @@
     <div class="card-head"><h2>Add User</h2></div>
     <div class="card-body">
       <form class="inline-form" data-r="add-user" novalidate>
-        <div class="field"><label>Username</label><input type="text" name="username" autocomplete="off" spellcheck="false"></div>
+        <div class="field"><label>Email address</label><input type="text" name="email" autocomplete="off" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="name@gmail.com"></div>
         <div class="field"><label>Full name</label><input type="text" name="full_name" autocomplete="off"></div>
         <div class="field"><label>Role</label>
           <select name="role"><option value="clinician">Clinician</option><option value="admin">Administrator</option></select></div>
         <div class="field"><label>Temporary password</label><input type="text" name="password" autocomplete="off" spellcheck="false"></div>
         <button type="submit" class="btn btn-primary">Add user</button>
       </form>
-      <p class="field-hint" style="margin-top:8px">The user must choose their own password at first sign in.
+      <p class="field-hint" style="margin-top:8px">They sign in with this email address and must choose their own password at first sign in.
         <button type="button" class="textbtn" data-r="generate">Generate a temporary password</button></p>
       <div class="notice notice-error" data-r="error" role="alert" hidden style="margin-top:10px"></div>
     </div>
@@ -622,7 +622,7 @@
     <div class="card-head"><h2>Users</h2></div>
     <div class="card-body table-wrap">
       <table class="data-table">
-        <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Last sign in</th><th></th></tr></thead>
+        <thead><tr><th>Name</th><th>Email address</th><th>Role</th><th>Status</th><th>Last sign in</th><th></th></tr></thead>
         <tbody data-r="rows"></tbody>
       </table>
     </div>
@@ -697,13 +697,54 @@
 </template>
 
 <template id="tpl-admin-audit">
-  <section class="card">
-    <div class="card-head"><h2>Recent Activity</h2></div>
+  <section class="card" style="margin-bottom:20px">
+    <div class="card-head">
+      <h2>Recent Activity</h2>
+      <span class="muted" data-r="count"></span>
+    </div>
     <div class="card-body table-wrap">
       <table class="data-table">
         <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Item</th><th>From</th></tr></thead>
         <tbody data-r="rows"></tbody>
       </table>
+    </div>
+  </section>
+  <section class="card card-danger">
+    <div class="card-head"><h2>Clear Audit Log</h2></div>
+    <div class="card-body">
+      <p class="danger-lead">
+        Permanently deletes activity entries. The log is the record of who did what, so this
+        cannot be undone.
+      </p>
+      <ul class="danger-list">
+        <li>Patients, examinations, reviews and user accounts are not touched.</li>
+        <li>This clearing is itself recorded, so the log always shows that it happened.</li>
+        <li>Hospital rules may require activity records to be kept for a set period. Check before clearing.</li>
+      </ul>
+      <form data-r="clear-form" novalidate>
+        <div class="field-row">
+          <div class="field">
+            <label>What to clear</label>
+            <select name="older_than_days">
+              <option value="365">Entries older than 1 year</option>
+              <option value="90" selected>Entries older than 90 days</option>
+              <option value="30">Entries older than 30 days</option>
+              <option value="0">Everything</option>
+            </select>
+          </div>
+          <div class="field" data-r="phrase-field" hidden>
+            <label>Type <strong data-r="phrase"></strong> to confirm</label>
+            <input type="text" name="confirm" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label>Your password</label>
+            <input type="password" name="password" autocomplete="current-password">
+          </div>
+        </div>
+        <p class="field-hint" data-r="preview"></p>
+        <div class="notice notice-error" data-r="error" role="alert" hidden></div>
+        <button type="submit" class="btn btn-danger-solid" data-r="clear" disabled>Clear entries</button>
+      </form>
     </div>
   </section>
 </template>
