@@ -11,7 +11,7 @@ import time
 from flask import Flask, current_app, jsonify, send_from_directory
 from werkzeug.exceptions import RequestEntityTooLarge
 
-from . import __version__, auth, config
+from . import __version__, auth, backtest, config
 from .admin import admin_bp
 from .auth import login_required
 from .db import db, upgrade_schema
@@ -61,6 +61,13 @@ def create_app(overrides=None):
     app.register_blueprint(exams_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(backtest.backtest_bp)
+
+    # Re-runs the model on the surgeons' reviewed cases once a day.
+    if config.BACKTEST_ENABLED:
+        scheduler = backtest.Scheduler(app)
+        app.extensions["backtest_scheduler"] = scheduler
+        scheduler.start()
 
     @app.after_request
     def security_headers(response):

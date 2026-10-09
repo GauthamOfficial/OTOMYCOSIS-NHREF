@@ -232,6 +232,10 @@ def main():
             summary = summarise(candidate_eval)
             summary.update({"comparison": comparison, "gate": decision,
                             "reviews_used": len(train_rows), "local_cases": len(holdout),
+                            # The daily backtest leaves these out of this
+                            # model's figures, so it is never marked on
+                            # cases it learned from.
+                            "trained_exam_ids": sorted(r["exam_id"] for r in train_rows),
                             "quick": QUICK})
             candidate = ModelVersion(
                 version=version, status="candidate",

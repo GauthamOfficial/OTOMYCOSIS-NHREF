@@ -502,8 +502,250 @@
     return range + p.successes + " of " + p.total;
   }
 
+  /* ----------------------- Daily backtest ----------------------- */
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  var backtestTimer = null;
+
+  function stopBacktestPolling() {
+    if (backtestTimer) { clearTimeout(backtestTimer); backtestTimer = null; }
+  }
+
+  function svg(tag, attrs, text) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    if (text) { node.textContent = text; }
+    return node;
+  }
+
+  function figureCell(p) {
+    var td = el("td", "num", p && p.total ? pct(p.value) : "n/a");
+    if (p && p.total) { td.appendChild(el("span", "sub", p.successes + " of " + p.total)); }
+    return td;
+  }
+
+  function plural(n, one, many) { return n + " " + (n === 1 ? one : (many || one + "s")); }
+
+  /* All time agreement and sensitivity over the runs, oldest on the left. */
+  function trendChart(runs, schedule) {
+    var points = runs.filter(function (run) {
+      return run.status === "succeeded" && run.summary.all.cases;
+    }).reverse();
+    if (points.length < 2) { return null; }
+
+    /* Drawn at about the card's width, so text renders near its set size. */
+    var W = 980, H = 190, L = 44, R = 14, T = 12, B = 26;
+    var series = ["agreement", "sensitivity"];
+    var values = [schedule.min_sensitivity];
+    points.forEach(function (p) {
+      series.forEach(function (key) {
+        var f = p.summary.all[key];
+        if (f && f.value !== null) { values.push(f.value); }
+      });
+    });
+    var lo = Math.max(0, Math.floor((Math.min.apply(null, values) - 0.05) * 10) / 10);
+    var hi = 1;
+    function x(i) { return L + (W - L - R) * (i / (points.length - 1)); }
+    function y(v) { return T + (H - T - B) * (1 - (v - lo) / (hi - lo)); }
+
+    var chart = svg("svg", { viewBox: "0 0 " + W + " " + H, role: "img",
+      "aria-label": "Backtest agreement and referral sensitivity over time" });
+    var lines = svg("g");
+    var dots = svg("g");
+    [lo, (lo + hi) / 2, hi].forEach(function (v) {
+      chart.appendChild(svg("line", { "class": "grid", x1: L, x2: W - R, y1: y(v), y2: y(v) }));
+      chart.appendChild(svg("text", { "class": "axis-label", x: L - 6, y: y(v) + 3, "text-anchor": "end" },
+        pct(v, 0)));
+    });
+    chart.appendChild(svg("line", { "class": "alert-line", x1: L, x2: W - R,
+      y1: y(schedule.min_sensitivity), y2: y(schedule.min_sensitivity) }));
+    chart.appendChild(lines);
+    chart.appendChild(dots);
+
+    series.forEach(function (key) {
+      var path = "";
+      points.forEach(function (p, i) {
+        var f = p.summary.all[key];
+        if (!f || f.value === null) { return; }
+        path += (path ? " L" : "M") + x(i).toFixed(1) + " " + y(f.value).toFixed(1);
+        var dot = svg("circle", { "class": "dot-" + key, cx: x(i), cy: y(f.value), r: 3 });
+        dot.appendChild(svg("title", {}, App.formatDate(p.started_at, false) + ": " + pct(f.value)));
+        dots.appendChild(dot);
+      });
+      if (path) { lines.appendChild(svg("path", { "class": "line line-" + key, d: path })); }
+    });
+
+    [0, points.length - 1].forEach(function (i) {
+      chart.appendChild(svg("text", { "class": "axis-label", x: x(i), y: H - 6,
+        "text-anchor": i === 0 ? "start" : "end" }, App.formatDate(points[i].started_at, false)));
+    });
+
+    var box = el("div");
+    var legend = el("div", "bt-legend");
+    legend.appendChild(el("span", "key-agreement", "Surgeon agreed"));
+    legend.appendChild(el("span", "key-sensitivity", "Referral sensitivity"));
+    legend.appendChild(el("span", "key-alert", "Sensitivity alert level, " + pct(schedule.min_sensitivity, 0)));
+    box.appendChild(legend);
+    box.appendChild(chart);
+    return box;
+  }
+
+  function resultPill(run) {
+    if (run.status === "failed") { return App.pill("failed", "Failed"); }
+    if (run.status === "running") { return App.pill("running", "Running"); }
+    if (run.alerts.length) { return App.pill("refer", plural(run.alerts.length, "alert")); }
+    return App.pill("succeeded", "No alerts");
+  }
+
+  function renderBacktest(view, data) {
+    var latest = data.latest, schedule = data.schedule, runs = data.runs;
+    var newest = runs[0];
+    var isAdmin = App.state.user && App.state.user.role === "admin";
+
+    var runButton = r(view, "bt-run");
+    runButton.hidden = !isAdmin;
+    runButton.disabled = !!data.running;
+    r(view, "bt-running").hidden = !data.running;
+
+    var next = schedule.enabled && schedule.next_run
+      ? "Next scheduled run " + App.formatDate(schedule.next_run) + "."
+      : "The daily schedule is switched off.";
+    var meta = latest
+      ? "Last completed " + App.formatDate(latest.finished_at || latest.started_at) + ", model " +
+        latest.model_version + ", " + plural(latest.cases, "reviewed case") + ". " + next
+      : "No backtest has completed yet. " + next;
+    if (data.running) { meta += " A backtest is running now: " + data.running.message; }
+    r(view, "bt-meta").textContent = meta;
+
+    /* Alerts from the latest completed run, and a failure if the newest run failed. */
+    var alerts = (latest ? latest.alerts : []).slice();
+    if (newest && newest.status === "failed") {
+      alerts.unshift("The latest backtest, started " + App.formatDate(newest.started_at) + ", failed. " +
+        (newest.message || ""));
+    }
+    var alertList = r(view, "bt-alert-list");
+    alertList.textContent = "";
+    alerts.forEach(function (a) { alertList.appendChild(el("li", null, a)); });
+    r(view, "bt-alerts").hidden = !alerts.length;
+
+    r(view, "bt-body").hidden = !latest;
+    if (!latest) { return; }
+    var res = latest.results;
+    var days = res.window_days;
+
+    r(view, "bt-window-head").textContent = "Last " + days + " days";
+    r(view, "bt-trend-window").textContent = "Sensitivity, " + schedule.window_days + " days";
+
+    var compare = r(view, "bt-compare");
+    compare.textContent = "";
+    [["Surgeon agreed", "agreement"], ["Referral sensitivity", "sensitivity"],
+     ["Referral specificity", "specificity"]].forEach(function (row) {
+      var tr = el("tr");
+      tr.appendChild(el("td", null, row[0]));
+      tr.appendChild(figureCell(res.all[row[1]]));
+      tr.appendChild(figureCell(res.recent[row[1]]));
+      tr.appendChild(figureCell(res.all.at_the_time[row[1]]));
+      compare.appendChild(tr);
+    });
+    var then = res.all.at_the_time.sensitivity;
+    var missedRow = el("tr");
+    missedRow.appendChild(el("td", null, "Abnormal ears not referred"));
+    missedRow.appendChild(el("td", "num", res.all.missed));
+    missedRow.appendChild(el("td", "num", res.recent.missed));
+    missedRow.appendChild(el("td", "num", then.total - then.successes));
+    compare.appendChild(missedRow);
+
+    var changed = res.changed;
+    var rest = changed.total - changed.now_agrees - changed.now_disagrees;
+    r(view, "bt-changed").textContent = changed.total
+      ? "Today's model gives a different finding from the one shown at the time on " +
+        plural(changed.total, "reviewed case") + ": " + changed.now_agrees +
+        " now match the surgeon's diagnosis and " + changed.now_disagrees + " no longer do" +
+        (rest ? ", and " + rest + " were wrong both times." : ".")
+      : "Today's model gives the same finding as was shown at the time on every reviewed case.";
+
+    var notes = r(view, "bt-notes");
+    notes.textContent = "";
+    var ex = res.excluded || {};
+    var left = [];
+    if (ex.trained_on) { left.push(plural(ex.trained_on, "case") + " this model was retrained on"); }
+    if (ex.dataset_copies) { left.push(plural(ex.dataset_copies, "copy", "copies") + " of original dataset images"); }
+    if (ex.image_missing) { left.push(plural(ex.image_missing, "case") + " whose image file is missing"); }
+    if (ex.unreadable) { left.push(plural(ex.unreadable, "image") + " that could not be read"); }
+    if (left.length) { notes.appendChild(el("li", null, "Left out: " + left.join("; ") + ".")); }
+    (res.notes || []).forEach(function (n) { notes.appendChild(el("li", null, n)); });
+
+    var chartBox = r(view, "bt-chart");
+    chartBox.textContent = "";
+    var chart = trendChart(runs, schedule);
+    if (chart) { chartBox.appendChild(chart); }
+
+    var trend = r(view, "bt-trend");
+    trend.textContent = "";
+    runs.forEach(function (run) {
+      var tr = el("tr");
+      var when = el("td", null, App.formatDate(run.started_at));
+      when.appendChild(el("span", "sub", run.trigger !== "manual" ? "Scheduled"
+        : run.started_by ? "Started by " + run.started_by : "Run from the command line"));
+      tr.appendChild(when);
+      tr.appendChild(el("td", null, run.model_version || ""));
+      tr.appendChild(el("td", "num", run.cases === null ? "" : run.cases));
+      [run.summary.all.agreement, run.summary.all.sensitivity, run.summary.recent.sensitivity]
+        .forEach(function (f) { tr.appendChild(el("td", "num", f && f.total ? pct(f.value) : "")); });
+      var cell = el("td");
+      cell.appendChild(resultPill(run));
+      tr.appendChild(cell);
+      tr.title = run.alerts.length ? run.alerts.join("\n") : (run.message || "");
+      trend.appendChild(tr);
+    });
+
+    var missed = r(view, "bt-missed");
+    missed.textContent = "";
+    if (!res.missed_cases.length) {
+      var none = el("tr");
+      var noneCell = el("td", "muted", "None. Every abnormal ear the surgeons confirmed would be referred.");
+      noneCell.colSpan = 4;
+      none.appendChild(noneCell);
+      missed.appendChild(none);
+    }
+    res.missed_cases.forEach(function (m) {
+      var tr = el("tr", "is-link");
+      tr.appendChild(el("td", null, App.formatDate(m.examined_at)));
+      tr.appendChild(el("td", null, m.surgeon));
+      tr.appendChild(el("td", null, m.model));
+      tr.appendChild(el("td", "num", pct(m.abnormal_probability)));
+      tr.addEventListener("click", function () { location.hash = "#/exam/" + m.exam_id; });
+      missed.appendChild(tr);
+    });
+  }
+
+  function loadBacktest(view) {
+    stopBacktestPolling();
+    App.request("GET", "/backtests?limit=30").then(function (data) {
+      if (!view.isConnected || !r(view, "bt-meta")) { return; }
+      renderBacktest(view, data);
+      if (data.running) { backtestTimer = setTimeout(function () { loadBacktest(view); }, 5000); }
+    }).catch(function (err) { App.toast(err.message, true); });
+  }
+
+  function wireBacktest(view) {
+    var button = r(view, "bt-run");
+    button.addEventListener("click", function () {
+      button.disabled = true;
+      App.request("POST", "/backtests").then(function () {
+        App.toast("Backtest started. Results appear here when it finishes, usually within minutes.");
+        loadBacktest(view);
+      }).catch(function (err) {
+        button.disabled = false;
+        App.toast(err.message, true);
+      });
+    });
+    loadBacktest(view);
+  }
+
   App.views.dashboard = function (view) {
     App.mount(view, "tpl-dashboard");
+    wireBacktest(view);
     App.request("GET", "/stats").then(function (s) {
       var activity = r(view, "activity");
       activity.appendChild(statBox("Examinations", s.totals.examinations, "on record"));
@@ -573,6 +815,7 @@
   };
   App.views.dashboard.title = ["Dashboard",
     "How the model performs on this clinic's patients, judged by the surgeons' reviews."];
+  App.views.dashboard.leave = stopBacktestPolling;
 
   /* ======================= Account ======================= */
 

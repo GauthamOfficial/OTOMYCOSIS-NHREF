@@ -475,6 +475,11 @@
 <!-- ---------- Dashboard ---------- -->
 <template id="tpl-dashboard">
   <main class="shell" style="padding-top:28px;padding-bottom:48px;display:grid;gap:20px">
+    <div class="notice notice-error" data-r="bt-alerts" role="alert" hidden>
+      <strong>Daily backtest alert</strong>
+      <ul data-r="bt-alert-list"></ul>
+      <span>Details are under Daily Backtest below.</span>
+    </div>
     <section class="card">
       <div class="card-head"><h2>Activity</h2></div>
       <div class="card-body"><div class="stats" data-r="activity"></div></div>
@@ -488,6 +493,63 @@
           Measured on this clinic's patients, taking each reviewing surgeon's verdict as the
           true diagnosis. This is the evidence that matters for local use, and it becomes
           more precise with every review.
+        </p>
+      </div>
+    </section>
+    <section class="card">
+      <div class="card-head">
+        <h2>Daily Backtest</h2>
+        <div class="head-actions">
+          <span class="pill pill-running" data-r="bt-running" hidden>Running</span>
+          <button type="button" class="btn btn-small" data-r="bt-run" hidden>Run backtest now</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="bt-meta" data-r="bt-meta">Loading.</p>
+        <div data-r="bt-body" hidden>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr>
+                <th>Measure</th>
+                <th class="num">All reviewed cases</th>
+                <th class="num" data-r="bt-window-head">Recent cases</th>
+                <th class="num">As given at the time</th>
+              </tr></thead>
+              <tbody data-r="bt-compare"></tbody>
+            </table>
+          </div>
+          <p class="stats-note" data-r="bt-changed"></p>
+          <ul class="bt-notes" data-r="bt-notes"></ul>
+
+          <h3 class="subhead">Trend</h3>
+          <div class="bt-chart" data-r="bt-chart"></div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr>
+                <th>Run</th><th>Model</th><th class="num">Cases</th><th class="num">Surgeon agreed</th>
+                <th class="num">Sensitivity</th><th class="num" data-r="bt-trend-window">Sensitivity, recent</th>
+                <th>Result</th>
+              </tr></thead>
+              <tbody data-r="bt-trend"></tbody>
+            </table>
+          </div>
+
+          <h3 class="subhead">Abnormal Ears the Model Would Not Refer</h3>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead><tr>
+                <th>Examined</th><th>Surgeon's diagnosis</th><th>Model's finding</th>
+                <th class="num">Abnormal probability</th>
+              </tr></thead>
+              <tbody data-r="bt-missed"></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="stats-note">
+          Every day the model in service is run again on every case a surgeon has reviewed, and
+          its answers are compared with the surgeons' verdicts. Cases a model was retrained on
+          are left out of its figures. The backtest never changes the model; it shows whether
+          performance is holding as patients, devices and models change.
         </p>
       </div>
     </section>
@@ -607,7 +669,8 @@
     <div class="card-head"><h2>Clear All Records</h2></div>
     <div class="card-body">
       <p class="danger-lead">
-        Permanently deletes <strong>every patient, examination, review and stored image</strong>.
+        Permanently deletes <strong>every patient, examination, review and stored image</strong>,
+        and the backtest results that describe them.
         Use it to remove test data before the system is used for real. It cannot be undone.
       </p>
       <ul class="danger-list">

@@ -18,7 +18,7 @@ from .db import Examination
 stats_bp = Blueprint("stats", __name__, url_prefix=config.API_PREFIX)
 
 
-def _proportion(successes, total):
+def proportion(successes, total):
     low, high = wilson(successes, total)
     return {
         "value": successes / total if total else None,
@@ -26,6 +26,13 @@ def _proportion(successes, total):
         "successes": successes,
         "total": total,
     }
+
+
+def source_of(exam):
+    """Image source as reported on the dashboard."""
+    if (exam.image_source or "upload") == "camera":
+        return "Camera: " + (exam.capture_device or "unnamed device")
+    return "Uploaded file"
 
 
 @stats_bp.route("/stats")
@@ -58,18 +65,13 @@ def statistics():
             "class": c,
             "name": config.display_name(c),
             "cases": len(truth),
-            "recall": _proportion(sum(1 for e in truth if e.predicted_class == c), len(truth)),
-            "precision": _proportion(sum(1 for e, l in labelled
+            "recall": proportion(sum(1 for e in truth if e.predicted_class == c), len(truth)),
+            "precision": proportion(sum(1 for e, l in labelled
                                          if e.predicted_class == c and l == c), len(predicted)),
         })
 
     # Accuracy can differ between devices (the training data already showed
     # source dependence), so agreement is reported per image source.
-    def source_of(exam):
-        if (exam.image_source or "upload") == "camera":
-            return "Camera: " + (exam.capture_device or "unnamed device")
-        return "Uploaded file"
-
     by_source = []
     for source in sorted({source_of(e) for e, _ in labelled}):
         cases = [(e, l) for e, l in labelled if source_of(e) == source]
@@ -77,8 +79,8 @@ def statistics():
         by_source.append({
             "source": source,
             "cases": len(cases),
-            "agreement": _proportion(sum(1 for e, l in cases if l == e.predicted_class), len(cases)),
-            "sensitivity": _proportion(sum(1 for e, l in abnormal if e.referral == "refer"), len(abnormal)),
+            "agreement": proportion(sum(1 for e, l in cases if l == e.predicted_class), len(cases)),
+            "sensitivity": proportion(sum(1 for e, l in abnormal if e.referral == "refer"), len(abnormal)),
         })
 
     corrections = Counter((e.predicted_class, l) for e, l in labelled if l != e.predicted_class)
@@ -92,13 +94,13 @@ def statistics():
             "unreviewed": len(exams) - len(reviewed),
             "referred": sum(1 for e in exams if e.referral == "refer"),
         },
-        "agreement": _proportion(agree, len(labelled)),
+        "agreement": proportion(agree, len(labelled)),
         "referral": {
-            "sensitivity": _proportion(tp, tp + fn),
-            "specificity": _proportion(tn, tn + fp),
+            "sensitivity": proportion(tp, tp + fn),
+            "specificity": proportion(tn, tn + fp),
             "missed": fn,
             "unnecessary": fp,
-            "other_diagnoses_referred": _proportion(other_referred, len(others)),
+            "other_diagnoses_referred": proportion(other_referred, len(others)),
         },
         "per_class": per_class,
         "by_source": by_source,

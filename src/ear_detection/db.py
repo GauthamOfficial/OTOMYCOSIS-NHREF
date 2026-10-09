@@ -106,7 +106,8 @@ class ModelVersion(db.Model):
             "id": self.id,
             "version": self.version,
             "status": self.status,
-            "summary": self.summary or {},
+            # The list of trained cases is internal and can be long.
+            "summary": {k: v for k, v in (self.summary or {}).items() if k != "trained_exam_ids"},
             "notes": self.notes,
             "created_at": iso(self.created_at),
             "approved_at": iso(self.approved_at),
@@ -235,6 +236,60 @@ class TrainingJob(db.Model):
             "reviews_used": self.reviews_used,
             "candidate": self.candidate.version if self.candidate else None,
         }
+
+
+class BacktestRun(db.Model):
+    """One re-run of a model over the surgeons' reviewed cases.
+
+    Runs daily, and on demand. The stored results are a snapshot: later
+    reviews or a model change show up in the next run, and the series of
+    runs is the trend.
+    """
+
+    __tablename__ = "backtest_runs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    # running, succeeded or failed.
+    status = db.Column(db.String(16), nullable=False, default="running", index=True)
+    # scheduled or manual.
+    trigger = db.Column(db.String(16), nullable=False, default="scheduled")
+    started_by_id = db.Column(db.Integer, db.ForeignKey("users.id"))
+    started_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow, index=True)
+    finished_at = db.Column(db.DateTime(timezone=True))
+    pid = db.Column(db.Integer)
+    model_version_id = db.Column(db.Integer, db.ForeignKey("model_versions.id"))
+    cases = db.Column(db.Integer)
+    results = db.Column(db.JSON)
+    alerts = db.Column(db.JSON)
+    message = db.Column(db.Text)
+
+    started_by = db.relationship("User")
+    model_version = db.relationship("ModelVersion")
+
+    def to_dict(self, full=False):
+        data = {
+            "id": self.id,
+            "status": self.status,
+            "trigger": self.trigger,
+            "started_by": self.started_by.full_name if self.started_by else None,
+            "started_at": iso(self.started_at),
+            "finished_at": iso(self.finished_at),
+            "model_version": self.model_version.version if self.model_version else None,
+            "cases": self.cases,
+            "alerts": self.alerts or [],
+            "message": self.message,
+        }
+        results = self.results or {}
+        if full:
+            data["results"] = results
+        else:
+            # Headline figures only, for the trend table.
+            data["summary"] = {
+                scope: {key: (results.get(scope) or {}).get(key)
+                        for key in ("cases", "agreement", "sensitivity", "specificity")}
+                for scope in ("all", "recent")
+            }
+        return data
 
 
 class AuditEvent(db.Model):

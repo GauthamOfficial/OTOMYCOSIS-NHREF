@@ -109,6 +109,42 @@ condition, the most common corrections and any other diagnoses entered.
 These figures are only reliable once many cases have been reviewed; the page
 warns you while the numbers are still small.
 
+### Daily backtest
+
+Every day, by default at 02:00, the system takes the model in service and runs
+it again on every case a surgeon has reviewed so far, then compares its
+answers with the surgeons' verdicts. If the computer was off at that time,
+the backtest runs a few minutes after the system is next started. It never
+changes the model; it checks whether the model is still performing as it
+should.
+
+The **Daily Backtest** section of the Dashboard shows:
+
+- **The latest results**, for all reviewed cases, for the last 30 days, and
+  for the answers that were actually shown at the time. The last column
+  differs from the others only when the model has been changed since, so it
+  shows whether retraining helped.
+- **Trend**: a chart and a table of every run, so a slow decline is visible.
+- **Abnormal ears the model would not refer**: the cases a surgeon found
+  disease in that today's model would send home. Click a row to open the
+  examination.
+
+A red **Daily backtest alert** appears at the top of the Dashboard when:
+
+- referral sensitivity over the last 30 days falls below 90 percent, or
+- agreement with the surgeons over the last 30 days falls more than 10 points
+  below the agreement on earlier cases.
+
+These checks start once there are at least 30 abnormal reviewed cases in the
+period, since smaller numbers swing too much to judge by. An alert means the
+model should be looked at before it is relied on further: check whether a new
+camera, a change in image quality or a different group of patients explains
+it, and discuss it with the administrator.
+
+Cases a model was retrained on are left out of that model's backtest, so it
+is never marked on cases it learned from. Administrators can also start a
+backtest at any time with **Run backtest now**.
+
 ## Printing
 
 **Print result** produces a one page summary with the recommendation first,
@@ -165,6 +201,12 @@ Both cannot be undone, and reviewed cases are what retraining learns from.
 Patient records may also fall under the hospital's retention rules, so do not
 delete real records without approval. Every deletion, with its reason, is
 recorded in the audit log.
+
+### Backtest settings
+
+The time of the daily backtest and its alert levels are set in the `.env`
+file (see the Setup Guide). **Run backtest now** on the Dashboard starts one
+immediately, for example after approving a new model.
 
 ### Audit log
 

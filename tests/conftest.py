@@ -21,6 +21,8 @@ os.environ["DATABASE_URL"] = "sqlite:///" + os.path.join(_TMP, "test.sqlite").re
 os.environ["JWT_SECRET_KEY"] = "test-secret-key-that-is-long-enough-0123456789"
 os.environ["STORAGE_DIR"] = os.path.join(_TMP, "storage")
 os.environ["MIN_REVIEWS_FOR_RETRAIN"] = "3"
+# The tests drive the backtest directly; no background scheduler.
+os.environ["BACKTEST_ENABLED"] = "0"
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 SAMPLE = os.path.join(ROOT, "docs", "images", "normalear.JPG")

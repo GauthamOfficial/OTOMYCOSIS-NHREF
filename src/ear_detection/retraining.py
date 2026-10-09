@@ -19,17 +19,17 @@ DATASET_DIR = os.path.join(config.BASE_DIR, "Dataset")
 MANIFEST = os.path.join(config.ARTIFACTS_DIR, "manifest.csv")
 
 
-_FROZEN = {"hashes": None}
+_HASHES = {}
 
 
-def frozen_hashes():
-    """SHA 256 of every validation and test image in the original dataset.
+def dataset_hashes(splits=("train", "val", "test")):
+    """SHA 256 of every image in the given splits of the original dataset.
 
-    Uploads identical to one of these are never trained on: doing so would
-    contaminate the frozen comparison every candidate is judged by. Computed
-    once per process, since the frozen splits never change.
+    Computed once per process and split selection, since the dataset never
+    changes. Empty when the dataset is not on this computer.
     """
-    if _FROZEN["hashes"] is None:
+    key = tuple(sorted(splits))
+    if key not in _HASHES:
         import csv
         import hashlib
 
@@ -37,14 +37,23 @@ def frozen_hashes():
         if os.path.isfile(MANIFEST):
             with open(MANIFEST, newline="", encoding="utf-8") as fh:
                 for row in csv.DictReader(fh):
-                    if row["split"] not in ("val", "test"):
+                    if row["split"] not in key:
                         continue
                     path = os.path.join(config.BASE_DIR, row["path"])
                     if os.path.isfile(path):
                         with open(path, "rb") as img:
                             hashes.add(hashlib.sha256(img.read()).hexdigest())
-        _FROZEN["hashes"] = hashes
-    return _FROZEN["hashes"]
+        _HASHES[key] = hashes
+    return _HASHES[key]
+
+
+def frozen_hashes():
+    """SHA 256 of every validation and test image in the original dataset.
+
+    Uploads identical to one of these are never trained on: doing so would
+    contaminate the frozen comparison every candidate is judged by.
+    """
+    return dataset_hashes(("val", "test"))
 
 
 def trainable_examinations():

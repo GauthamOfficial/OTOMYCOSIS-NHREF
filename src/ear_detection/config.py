@@ -69,6 +69,23 @@ MIN_PASSWORD_LENGTH = 10
 # Reviewed cases needed before a retraining run is allowed.
 MIN_REVIEWS_FOR_RETRAIN = int(os.environ.get("MIN_REVIEWS_FOR_RETRAIN") or 50)
 
+# ---------------- daily backtest ----------------
+
+# Once a day the model in service is re-run on every surgeon reviewed case and
+# compared with the surgeons' verdicts. It runs at or after this local hour,
+# or shortly after start up if that day's run was missed.
+BACKTEST_ENABLED = _env_bool("BACKTEST_ENABLED", True)
+BACKTEST_HOUR = int(os.environ.get("BACKTEST_HOUR") or 2)
+# Recent window reported alongside all time figures, so a recent decline is
+# not hidden by older good results.
+BACKTEST_WINDOW_DAYS = int(os.environ.get("BACKTEST_WINDOW_DAYS") or 30)
+# Alert when recent referral sensitivity falls below this...
+BACKTEST_MIN_SENSITIVITY = float(os.environ.get("BACKTEST_MIN_SENSITIVITY") or 0.90)
+# ...judged only once this many abnormal reviewed cases exist in the window.
+BACKTEST_MIN_CASES = int(os.environ.get("BACKTEST_MIN_CASES") or 30)
+# Alert when recent agreement is this far below the long term figure.
+BACKTEST_MAX_AGREEMENT_DROP = float(os.environ.get("BACKTEST_MAX_AGREEMENT_DROP") or 0.10)
+
 # ---------------- uploads ----------------
 
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024

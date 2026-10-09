@@ -13,7 +13,7 @@ from werkzeug.security import check_password_hash
 from . import config, reporting, retraining, storage
 from .auth import client_ip, hash_password, login_required, password_problem
 from .db import (
-    AuditEvent, Examination, ModelVersion, Patient, Review, TrainingJob, User, as_utc, db,
+    AuditEvent, BacktestRun, Examination, ModelVersion, Patient, Review, TrainingJob, User, as_utc, db,
     record, utcnow,
 )
 
@@ -264,8 +264,9 @@ def clear_records():
 
     Meant for removing test data before the system is used for real. Needs
     the exact confirmation phrase and the administrator's own password, so an
-    unattended signed in screen is not enough. User accounts, model versions
-    and the audit log are kept; the audit log records the clearing itself.
+    unattended signed in screen is not enough. Backtest results go too, since
+    they describe the deleted cases. User accounts, model versions and the
+    audit log are kept; the audit log records the clearing itself.
     """
     body = request.get_json(silent=True) or {}
     if str(body.get("confirm", "")).strip() != CLEAR_PHRASE:
@@ -277,7 +278,9 @@ def clear_records():
         "patients": Patient.query.count(),
         "examinations": Examination.query.count(),
         "reviews": Review.query.count(),
+        "backtests": BacktestRun.query.count(),
     }
+    BacktestRun.query.delete()
     Review.query.delete()
     Examination.query.delete()
     Patient.query.delete()

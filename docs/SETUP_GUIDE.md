@@ -115,6 +115,7 @@ Run these from a Command Prompt in the project folder:
 | Add a user | `.venv\Scripts\python.exe scripts\manage.py create-user` |
 | Reset a password | `.venv\Scripts\python.exe scripts\manage.py reset-password USERNAME` |
 | Unlock an account after failed sign ins | `.venv\Scripts\python.exe scripts\manage.py unlock USERNAME` |
+| Run a backtest now | `.venv\Scripts\python.exe scripts\backtest.py` |
 | Run the test suite | `.venv\Scripts\python.exe -m pytest` |
 
 If every administrator is locked out, `reset-password` works without signing
@@ -132,7 +133,29 @@ on the computer it runs on (`http://localhost:5000`) counts as secure. From
 other computers on the network it must be served over HTTPS (section 7), or
 the camera option will explain that it cannot start.
 
-## 10. Retraining requirements
+## 10. Daily backtest
+
+While the service is running it re-runs the model in service on every
+surgeon reviewed case once a day and shows the results on the Dashboard. It
+runs as a separate background process, needs no extra setup, and takes about
+a second per reviewed case. If the service was not running at the scheduled
+time, the backtest runs a few minutes after it next starts.
+
+The defaults suit most clinics. To change them, add any of these lines to
+`.env` and restart the service:
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `BACKTEST_ENABLED` | `true` | Set `false` to stop the daily run. Administrators can still run it from the Dashboard. |
+| `BACKTEST_HOUR` | `2` | Hour of the day (0 to 23, this computer's clock) from which the daily run starts. |
+| `BACKTEST_WINDOW_DAYS` | `30` | The recent period reported next to the all time figures. |
+| `BACKTEST_MIN_SENSITIVITY` | `0.90` | Alert when referral sensitivity falls below this. |
+| `BACKTEST_MIN_CASES` | `30` | Abnormal reviewed cases needed in the period before alerts are raised. |
+| `BACKTEST_MAX_AGREEMENT_DROP` | `0.10` | Alert when recent agreement is this far below earlier agreement. |
+
+Progress and errors are written to `storage\jobs\backtest_N.log`.
+
+## 11. Retraining requirements
 
 Retraining is started from **Admin, Model and Retraining**. It needs the
 original `Dataset` folder on the same computer, because reviewed clinic cases

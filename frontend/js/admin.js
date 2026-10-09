@@ -353,7 +353,8 @@
     examination_created: "Analysed examination", examination_reviewed: "Reviewed examination",
     retraining_started: "Started retraining", model_approved: "Approved model",
     model_rejected: "Rejected model", examination_deleted: "Deleted examination",
-    records_cleared: "Cleared all records"
+    records_cleared: "Cleared all records", backtest_started: "Started backtest",
+    backtest_completed: "Backtest completed"
   };
 
   function auditPanel(panel) {

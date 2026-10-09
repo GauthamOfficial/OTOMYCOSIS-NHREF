@@ -59,10 +59,12 @@ How to use the system day to day is in the **[User Guide](docs/USER_GUIDE.md)**.
    diagnosis that is not listed.
 4. Every examination stays available in **History**, and the **Dashboard**
    shows how the model performs against the surgeons' verdicts.
-5. An administrator can **retrain** once enough reviews exist. The candidate
+5. Every day a **backtest** re-runs the model in service on all reviewed cases
+   and raises an alert on the Dashboard if its performance has fallen.
+6. An administrator can **retrain** once enough reviews exist. The candidate
    goes live only if it is at least as good as the current model and an
    administrator approves it.
-6. An administrator can **delete** an examination recorded in error, with a
+7. An administrator can **delete** an examination recorded in error, with a
    reason, or **clear all records**, for example to remove test data before
    real use. Both are recorded in the audit log.
 
@@ -130,6 +132,20 @@ Instead:
 The surgeons' reviews matter even without retraining: they are a running,
 prospective measurement of performance on this clinic's patients and
 equipment, which the public dataset results cannot provide.
+
+### Daily backtest
+
+Once a day the model in service is run again on every reviewed case and
+compared with the surgeons' verdicts. The Dashboard shows the results for all
+cases and for the last 30 days, next to the answers actually given at the
+time, with the trend across runs and the abnormal ears the model would not
+refer. It raises an alert when recent referral sensitivity falls below 90
+percent, or recent agreement falls more than 10 points below earlier
+agreement, once there are enough cases to judge. Cases a model was retrained
+on, and copies of original dataset images, are left out so it is never
+marked on its own training data. The backtest runs in a separate process,
+never changes the model, and can also be started by an administrator or with
+`python scripts/backtest.py`.
 
 ## How the model works
 
@@ -254,6 +270,9 @@ All endpoints except health and sign in require `Authorization: Bearer <token>`.
 | `POST` | `/api/v1/examinations/<id>/review` | `verdict` of `correct`, `corrected` (with `true_class`) or `other` (with `other_label`). |
 | `GET` | `/api/v1/patients/<record_no>` | Whether a record number exists. |
 | `GET` | `/api/v1/stats` | Performance against the surgeons' reviews. |
+| `GET` | `/api/v1/backtests` | Daily backtest runs, the latest full results and the schedule. |
+| `GET` | `/api/v1/backtests/<id>` | One backtest run with its full results. |
+| `POST` | `/api/v1/backtests` | Start a backtest now. Administrators only. |
 | `GET` | `/api/v1/model` | Model version, threshold, test results, classes. |
 | `GET` | `/api/v1/health` | Service status. |
 | | `/api/v1/admin/...` | Users, model versions, retraining, approval, records (including clearing all) and the audit log. Administrators only. |
@@ -285,6 +304,7 @@ src/ear_detection/
     auth.py                 Sign in, tokens, roles, password rules
     exams.py                Examinations, reviews, images, history
     stats.py                Performance against the surgeons' reviews
+    backtest.py             Daily backtest against the reviews, and its schedule
     admin.py                Users, model versions, retraining, audit log
     db.py                   Database schema
     analysis.py             Turning model output into a result
@@ -298,7 +318,7 @@ src/ear_detection/
 frontend/                   Web interface and the generated report page
 models/ear_classifier.keras The model shipped as version 2.0.0
 artifacts/                  Label order, split manifest, calibration, evaluation
-scripts/                    manage, prepare_dataset, train, calibrate, retrain, report
+scripts/                    manage, prepare_dataset, train, calibrate, retrain, backtest, report
 tests/                      Authentication, examinations, administration, model, imaging, report
 docs/                       Setup guide, user guide and validation report
 notebooks/                  Experiments from the original prototype (historical)
