@@ -5,13 +5,15 @@
 Steps
 1. Collect examinations whose latest review names a trained condition.
    Diagnoses typed as "other" are left out: there is no class to learn them as.
-2. Hold out about 30 percent of patients as a local test set. Splitting by
-   patient keeps both ears and repeat visits on the same side of the split.
+2. Set aside the reserved evaluation cohort: about 30 percent of patients,
+   fixed by a hash of the patient id so the same patients are reserved at
+   every run and are never trained on. Splitting by patient keeps both ears
+   and repeat visits on the same side of the split.
 3. Train a candidate on the original training data plus the remaining
    reviewed cases. The original validation and test splits are untouched.
 4. Calibrate the candidate on the original validation split and score it on
    the frozen test split, exactly as the current model was.
-5. Score current and candidate on the held out local cases.
+5. Score current and candidate on the reserved local cases.
 6. Apply the gate: the candidate must not be worse on either test set.
 7. Register the candidate. It goes live only when an administrator approves.
 
@@ -23,9 +25,8 @@ Set RETRAIN_QUICK=1 for a one epoch run when testing the pipeline itself.
 
 import argparse
 import csv
-
+import hashlib
 import os
-import random
 import subprocess
 import sys
 import time
@@ -39,9 +40,10 @@ from ear_detection.db import ModelVersion, TrainingJob, db, make_db_app, utcnow
 from ear_detection.registry import summarise
 
 QUICK = os.environ.get("RETRAIN_QUICK") == "1"
-HOLDOUT_FRACTION = 0.3
+HOLDOUT_FRACTION = 0.3   # share of patients reserved for independent evaluation
+RESERVED_SALT = "otoscan-reserved-cohort-v1"
 TOLERANCE_TEST = 0.01     # allowed drop on the frozen test set
-TOLERANCE_LOCAL = 0.02    # allowed drop on held out local cases
+TOLERANCE_LOCAL = 0.02    # allowed drop on the reserved local cases
 MIN_LOCAL_FOR_GATE = 10   # below this the local comparison is reported, not enforced
 CANDIDATES_DIR = os.path.join(BASE_DIR, "models", "candidates")
 
@@ -69,11 +71,29 @@ def collect_reviewed():
     return rows, excluded
 
 
-def split_by_patient(rows, seed):
-    patients = sorted({r["patient_id"] for r in rows})
-    random.Random(seed).shuffle(patients)
-    n_hold = int(round(len(patients) * HOLDOUT_FRACTION)) if len(patients) >= 4 else 0
-    hold = set(patients[:n_hold])
+def is_reserved(patient_id):
+    """Whether a patient belongs to the reserved evaluation cohort.
+
+    Membership is a stable function of the patient id, not of the run. An
+    earlier version shuffled the patient list with the job id as the seed,
+    which drew a different holdout every run, so a patient held out once
+    could be trained on the next time and no cohort stayed independent of
+    the weights. Hashing the id with a fixed salt keeps the cohort unchanged
+    as new patients arrive: a reserved patient is reserved for good, and the
+    local comparison is always made on cases the candidate never saw.
+    """
+    digest = hashlib.sha256(("%s:%s" % (RESERVED_SALT, patient_id)).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big") / float(1 << 64) < HOLDOUT_FRACTION
+
+
+def split_by_patient(rows):
+    """Training cases and reserved cases, split so one patient never spans both."""
+    patients = {r["patient_id"] for r in rows}
+    hold = {p for p in patients if is_reserved(p)}
+    # Below a handful of patients the reserved share is too small to judge
+    # anything, and holding cases back only starves training.
+    if len(patients) < 4:
+        hold = set()
     return ([r for r in rows if r["patient_id"] not in hold],
             [r for r in rows if r["patient_id"] in hold])
 
@@ -175,8 +195,8 @@ def main():
                 raise RuntimeError("Only %d usable reviewed cases; %d are required."
                                    % (len(rows), config.MIN_REVIEWS_FOR_RETRAIN))
 
-            train_rows, holdout = split_by_patient(rows, seed=job_id)
-            log("%d cases for training, %d held out from %d patients"
+            train_rows, holdout = split_by_patient(rows)
+            log("%d cases for training, %d reserved from %d patients"
                 % (len(train_rows), len(holdout), len({r["patient_id"] for r in holdout})))
 
             version = next_version()

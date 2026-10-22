@@ -35,6 +35,11 @@ samples/
 # Secrets: database password and token signing key. Never commit.
 .env
 
+# Local development database. A SQLite file here holds the same patient
+# records PostgreSQL would in a real installation. Never commit.
+*.sqlite
+*.sqlite3
+
 # Patient images, derived images and job logs. Never commit.
 storage/
 
